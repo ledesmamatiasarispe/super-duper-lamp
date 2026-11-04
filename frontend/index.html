@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mantenimiento Romero</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/ayuda.css">
+</head>
+<body>
+  <div id="login" class="login oculto">
+    <form id="form-login" class="tarjeta login-caja">
+      <h1>Mantenimiento</h1>
+      <p class="sutil">Fundición Romero</p>
+      <label>Legajo <input name="legajo" inputmode="numeric" autocomplete="username" required></label>
+      <label>Contraseña <input name="password" type="password" autocomplete="current-password" required></label>
+      <p id="login-error" class="error"></p>
+      <button class="primario">Entrar</button>
+    </form>
+  </div>
+
+  <div id="app" class="oculto">
+    <header class="barra">
+      <span class="marca">Mantenimiento</span>
+      <nav id="menu">
+        <a data-vista="inicio">Inicio</a>
+        <a data-vista="cronograma">Cronograma</a>
+        <a data-vista="registros">Registros</a>
+        <a data-vista="horometros">Horómetros</a>
+        <a data-vista="correctivos">Correctivos</a>
+        <a data-vista="plan">Plan</a>
+        <a data-vista="equipos">Equipos e instructivos</a>
+        <a data-vista="personal">Personal</a>
+        <a data-vista="areas">Áreas</a>
+        <a data-vista="usuarios" class="solo-admin">Usuarios</a>
+      </nav>
+      <button id="ayuda-boton" class="ayuda-boton" type="button" title="Cómo se usa esta pantalla"><span class="ayuda-icono">?</span> Ayuda</button>
+      <button id="tour-boton" class="ayuda-boton" type="button" title="Recorrido por toda la app y cómo se conectan sus partes"><span class="ayuda-icono">▶</span> Tour completo</button>
+      <span class="usuario"><span id="usuario-nombre"></span> · <button id="mi-password" class="link">Cambiar contraseña</button>
+        · <button id="mis-opciones" class="link">Opciones</button>
+        · <button id="salir" class="link">Salir</button></span>
+    </header>
+    <main id="vista"></main>
+  </div>
+
+  <dialog id="modal"><div id="modal-cuerpo"></div></dialog>
+  <div id="aviso" class="aviso oculto"></div>
+  <script src="/static/app.js"></script>
+  <script src="/static/ayuda.js"></script>
+</body>
+</html>

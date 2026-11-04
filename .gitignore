@@ -1,0 +1,10 @@
+# datos de cada instalación: base, adjuntos, copias de seguridad, logs
+data/
+# compilación (herramientas/compilar.py)
+build/
+dist/
+# entorno y cachés de Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
