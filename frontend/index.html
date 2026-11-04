@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mantenimiento Romero</title>
+  <title>UltraMantenimiento</title>
+  <link rel="icon" type="image/svg+xml" href="/static/icono.svg">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/ayuda.css">
 </head>
 <body>
   <div id="login" class="login oculto">
     <form id="form-login" class="tarjeta login-caja">
-      <h1>Mantenimiento</h1>
+      <img class="login-logo" src="/static/icono.svg" alt="">
+      <h1>UltraMantenimiento</h1>
       <p class="sutil">Fundición Romero</p>
       <label>Legajo <input name="legajo" inputmode="numeric" autocomplete="username" required></label>
       <label>Contraseña <input name="password" type="password" autocomplete="current-password" required></label>
@@ -21,7 +23,7 @@
 
   <div id="app" class="oculto">
     <header class="barra">
-      <span class="marca">Mantenimiento</span>
+      <span class="marca"><img src="/static/logo.svg" alt="">UltraMantenimiento</span>
       <nav id="menu">
         <a data-vista="inicio">Inicio</a>
         <a data-vista="cronograma">Cronograma</a>

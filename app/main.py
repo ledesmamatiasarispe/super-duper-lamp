@@ -28,7 +28,7 @@ async def _inicio(_app):
     yield
 
 
-app = FastAPI(title="Mantenimiento Romero", lifespan=_inicio)
+app = FastAPI(title="UltraMantenimiento", lifespan=_inicio)
 app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
 
 Usuario = Depends(auth.usuario_actual)

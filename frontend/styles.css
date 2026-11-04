@@ -15,7 +15,11 @@ a { color: var(--azul); cursor: pointer; }
 /* barra */
 .barra { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; padding: .5rem 1rem;
   background: #17324d; color: #fff; flex-wrap: wrap; }
-.marca { font-weight: 700; letter-spacing: .02em; }
+.marca { font-weight: 700; letter-spacing: .02em; display: inline-flex; align-items: center; gap: .45rem; }
+.marca img { width: 30px; height: 30px; }
+.login-logo { width: 64px; height: 64px; align-self: center; }
+.login-caja h1 { text-align: center; margin-bottom: 0; }
+.login-caja h1 + .sutil { text-align: center; margin-top: 0; }
 #menu { display: flex; gap: .25rem; flex-wrap: wrap; flex: 1; }
 #menu a { color: #cfe0f1; padding: .35rem .65rem; border-radius: 6px; text-decoration: none; }
 #menu a:hover { background: #24476b; }

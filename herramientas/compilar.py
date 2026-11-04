@@ -1,5 +1,5 @@
-"""Compila la app para distribuir: dist/MantenimientoRomero/ (el .exe y _internal/) y el paquete que se sube al
-release de GitHub, dist/MantenimientoRomero-v<VERSION>-win64.zip con su .sha256 (el actualizador no instala sin él).
+"""Compila la app para distribuir: dist/UltraMantenimiento/ (el .exe y _internal/) y el paquete que se sube al
+release de GitHub, dist/UltraMantenimiento-v<VERSION>-win64.zip con su .sha256 (el actualizador no instala sin él).
 
     .venv/Scripts/python.exe herramientas/compilar.py                 (local)
     .venv/Scripts/python.exe herramientas/compilar.py --tag v1.2.0    (en GitHub Actions: exige que el tag sea la versión)
@@ -18,7 +18,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 from app.version import VERSION  # noqa: E402
 
-NOMBRE = "MantenimientoRomero"
+NOMBRE = "UltraMantenimiento"
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
     dist, build = RAIZ / "dist", RAIZ / "build"
     shutil.rmtree(dist / NOMBRE, ignore_errors=True)
     subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onedir", "--console",
-                    "--name", NOMBRE, "--distpath", str(dist), "--workpath", str(build), "--specpath", str(build),
+                    "--name", NOMBRE, "--icon", str(RAIZ / "herramientas" / "ultramantenimiento.ico"), "--distpath", str(dist), "--workpath", str(build), "--specpath", str(build),
                     "--add-data", f"{RAIZ / 'frontend'}{';' if sys.platform == 'win32' else ':'}frontend",
                     "--collect-submodules", "uvicorn", "--collect-submodules", "app",
                     "--exclude-module", "pytest", str(RAIZ / "app" / "__main__.py")], check=True, cwd=RAIZ)

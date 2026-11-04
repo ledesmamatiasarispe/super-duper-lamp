@@ -30,7 +30,7 @@ from .servicios import ErrorDeNegocio
 
 # MANT_API_ACTUALIZACION la reemplaza solo para probar la actualización completa contra un servidor local
 API = os.environ.get("MANT_API_ACTUALIZACION", "https://api.github.com/repos/{repo}/releases/latest")
-EXE = "MantenimientoRomero.exe"
+EXE = "UltraMantenimiento.exe"
 POSPONER_DIAS = 7
 _CACHE_SEGUNDOS = 6 * 3600   # la consulta a GitHub se repite cada tanto, no en cada pantalla
 
@@ -52,7 +52,7 @@ def es_mas_nueva(etiqueta: str, actual: str = v.VERSION) -> bool:
 
 
 def _pedir(url: str, timeout: float = 10) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "MantenimientoRomero/" + v.VERSION,
+    req = urllib.request.Request(url, headers={"User-Agent": "UltraMantenimiento/" + v.VERSION,
                                                "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:   # noqa: S310 (siempre https de GitHub)
         return r.read()
@@ -162,7 +162,7 @@ def instalar() -> dict:
     # robocopy sin /MIR: agrega y pisa, nunca borra (así data/ y cualquier archivo propio de la instalación quedan)
     bat.write_text(f"""@echo off
 chcp 65001 >nul
-echo Actualizando Mantenimiento a {info['nueva']}...
+echo Actualizando UltraMantenimiento a {info['nueva']}...
 :esperar
 tasklist /FI "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul && (timeout /t 1 /nobreak >nul & goto esperar)
 robocopy "{nueva}" "{instalacion}" /E /XD "{datos}" /R:10 /W:2 /NP /LOG:"{log}"

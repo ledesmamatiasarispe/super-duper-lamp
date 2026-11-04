@@ -22,14 +22,14 @@ def zip_con(archivos: dict) -> bytes:
 @pytest.fixture()
 def github(monkeypatch):
     """Un release v9.0.0 con su .zip y .sha256. Devuelve el dict de respuestas por URL, para cambiarlas en cada test."""
-    paquete = zip_con({"MantenimientoRomero/MantenimientoRomero.exe": b"MZ nuevo", "MantenimientoRomero/_internal/x.txt": b"x"})
+    paquete = zip_con({"UltraMantenimiento/UltraMantenimiento.exe": b"MZ nuevo", "UltraMantenimiento/_internal/x.txt": b"x"})
     respuestas = {
         act.API.format(repo="romero/mantenimiento"): json.dumps({
             "tag_name": "v9.0.0", "body": "- Novedad 1\n- Novedad 2", "html_url": "https://github.com/romero/mantenimiento/releases/v9.0.0",
-            "assets": [{"name": "MantenimientoRomero-v9.0.0-win64.zip", "browser_download_url": "https://x/zip"},
-                       {"name": "MantenimientoRomero-v9.0.0-win64.zip.sha256", "browser_download_url": "https://x/sha"}]}).encode(),
+            "assets": [{"name": "UltraMantenimiento-v9.0.0-win64.zip", "browser_download_url": "https://x/zip"},
+                       {"name": "UltraMantenimiento-v9.0.0-win64.zip.sha256", "browser_download_url": "https://x/sha"}]}).encode(),
         "https://x/zip": paquete,
-        "https://x/sha": (hashlib.sha256(paquete).hexdigest() + "  MantenimientoRomero-v9.0.0-win64.zip\n").encode(),
+        "https://x/sha": (hashlib.sha256(paquete).hexdigest() + "  UltraMantenimiento-v9.0.0-win64.zip\n").encode(),
     }
 
     def pedir(url, timeout=10):
@@ -95,7 +95,7 @@ def test_sin_sha256_no_es_instalable_y_sin_internet_no_rompe(api, github):
 def test_preparar_controla_el_hash_y_descomprime(github, tmp_path):
     info = act.buscar(forzar=True)
     carpeta = act.preparar(info, tmp_path / "actualizacion")
-    assert (carpeta / "MantenimientoRomero.exe").read_bytes() == b"MZ nuevo"
+    assert (carpeta / "UltraMantenimiento.exe").read_bytes() == b"MZ nuevo"
     github["https://x/sha"] = b"0" * 64
     with pytest.raises(act.ErrorDeNegocio, match="SHA-256"):
         act.preparar(info, tmp_path / "actualizacion")
@@ -103,7 +103,7 @@ def test_preparar_controla_el_hash_y_descomprime(github, tmp_path):
 
 def test_un_zip_con_rutas_peligrosas_no_se_instala(tmp_path):
     malo = tmp_path / "malo.zip"
-    malo.write_bytes(zip_con({"../../fuera.txt": b"x", "MantenimientoRomero.exe": b"MZ"}))
+    malo.write_bytes(zip_con({"../../fuera.txt": b"x", "UltraMantenimiento.exe": b"MZ"}))
     with pytest.raises(act.ErrorDeNegocio, match="rutas inválidas"):
         act._extraer(malo, tmp_path / "nueva")
     assert not (tmp_path.parent / "fuera.txt").exists()

@@ -7,6 +7,8 @@ se cometieron una vez. Si cambiás algo de lo que dice acá, actualizalo en el m
 
 1. QUÉ ES
 ---------
+UltraMantenimiento (logo: herradura blanca sobre azul #17324d; frontend/logo.svg e icono.svg, y el .ico del exe
+en herramientas/ultramantenimiento.ico, generado por herramientas/icono.py con la misma geometría).
 App web de MANTENIMIENTO PREVENTIVO y correctivo de una planta (Fundición Romero). Reemplaza una planilla Excel
 de cronograma. La usan administradores (configuran) y usuarios de mantenimiento (registran trabajos), desde PCs y
 tablets de planta en la red local. Todo en español rioplatense (textos, código, nombres).
@@ -46,7 +48,8 @@ La idea en una línea:
                     PASOS; cada paso busca su elemento EN EL MOMENTO (por texto de botón o clase): si cambiás el texto
                     de un botón, revisá ayuda.js o ese paso desaparece sin error.
   herramientas/
-    compilar.py               PyInstaller onedir -> dist/MantenimientoRomero/ + .zip + .sha256
+    compilar.py               PyInstaller onedir -> dist/UltraMantenimiento/ + .zip + .sha256
+    icono.py                  genera ultramantenimiento.ico (sin librerías de imágenes)
     instructivo_ejemplo.py    crea el instructivo "EJEMPLO · Bomba centrífuga" (usa todas las herramientas del editor)
   tests/            pytest con TestClient contra una base nueva por test (fixture `api` en test_api.py, admin logueado).
                     conftest.py pone MANT_REPO="" para que los tests no salgan a internet.
@@ -109,8 +112,8 @@ La idea en una línea:
 
 6. VERSIÓN COMPILADA Y ACTUALIZACIONES
 --------------------------------------
-- Compilar: `.venv\Scripts\python.exe herramientas\compilar.py` -> dist/MantenimientoRomero/ (exe + _internal) y
-  dist/MantenimientoRomero-v<VERSION>-win64.zip + .sha256. Compilada, los datos van en <carpeta del exe>/data
+- Compilar: `.venv\Scripts\python.exe herramientas\compilar.py` -> dist/UltraMantenimiento/ (exe + _internal) y
+  dist/UltraMantenimiento-v<VERSION>-win64.zip + .sha256. Compilada, los datos van en <carpeta del exe>/data
   (NUNCA dentro de _internal: cada actualización reemplaza el código).
 - Publicar: subir VERSION en app/version.py, commit, tag "v"+VERSION, push del tag -> GitHub Actions publica el release.
 - Actualizador (app/actualizador.py): al arrancar consulta el último release de REPO; si es más nuevo, a un ADMIN
