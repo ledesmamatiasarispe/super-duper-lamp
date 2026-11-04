@@ -86,6 +86,17 @@ def test_sin_sha256_no_es_instalable_y_sin_internet_no_rompe(api, github):
     github[act.API.format(repo="romero/mantenimiento")] = OSError("sin red")
     a = api.post("/api/actualizacion/buscar").json()
     assert "No se pudo consultar GitHub" in a["error"] and not a["disponible"]
+    # el límite de consultas de GitHub se explica, con la hora en que se libera
+    limite = act.urllib.error.HTTPError("u", 403, "rate limit exceeded",
+                                        {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1793792819"}, None)
+    github[act.API.format(repo="romero/mantenimiento")] = limite
+    a = api.post("/api/actualizacion/buscar").json()
+    assert "limitó por un rato" in a["error"] and "Se libera a las" in a["error"]
+    # y como falló, no se guarda 6 horas: pasados los 10 minutos se vuelve a consultar sola
+    github[act.API.format(repo="romero/mantenimiento")] = json.dumps({"tag_name": "v9.0.0", "assets": []}).encode()
+    assert api.get("/api/actualizacion").json()["error"]   # todavía dentro de los 10 minutos
+    act._estado["buscado"] -= act._REINTENTO_SEGUNDOS + 1
+    assert api.get("/api/actualizacion").json()["nueva"] == "v9.0.0"
     # un repositorio sin ningún release todavía no es un error: simplemente no hay versión nueva
     github[act.API.format(repo="romero/mantenimiento")] = act.urllib.error.HTTPError("u", 404, "Not Found", {}, None)
     a = api.post("/api/actualizacion/buscar").json()

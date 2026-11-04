@@ -33,6 +33,7 @@ API = os.environ.get("MANT_API_ACTUALIZACION", "https://api.github.com/repos/{re
 EXE = "UltraMantenimiento.exe"
 POSPONER_DIAS = 7
 _CACHE_SEGUNDOS = 6 * 3600   # la consulta a GitHub se repite cada tanto, no en cada pantalla
+_REINTENTO_SEGUNDOS = 10 * 60   # si falló, se vuelve a probar a los 10 minutos
 
 _estado: dict = {}
 _lock = threading.Lock()
@@ -64,10 +65,27 @@ def _config(clave: str) -> str | None:
         return fila[0] if fila else None
 
 
+def _explicar_http(e: urllib.error.HTTPError) -> str:
+    """El 403/429 por límite de consultas (60 por hora por IP sin usuario, compartido por toda la red) se explica
+    con la hora en que se libera: no es una falla de la app ni del repositorio."""
+    cabeceras = e.headers or {}
+    if e.code in (403, 429) and cabeceras.get("X-RateLimit-Remaining") == "0":
+        try:
+            hora = time.strftime("%H:%M", time.localtime(int(cabeceras.get("X-RateLimit-Reset"))))
+            cuando = f"Se libera a las {hora}"
+        except (TypeError, ValueError):
+            cuando = "Se libera en menos de una hora"
+        return (f"GitHub limitó por un rato las consultas desde esta red (hasta 60 por hora). {cuando}; "
+                "la app vuelve a intentar sola.")
+    return f"No se pudo consultar GitHub (HTTP {e.code})."
+
+
 def buscar(forzar: bool = False) -> dict:
     """El último release: versión, notas y el .zip a instalar. Guarda el resultado un rato para no consultar de más."""
     with _lock:
-        if not forzar and _estado and time.time() - _estado["buscado"] < _CACHE_SEGUNDOS:
+        # una consulta que salió bien vale unas horas; una que falló se reintenta pronto (corte de internet, límite)
+        vigencia = _CACHE_SEGUNDOS if _estado and not _estado["error"] else _REINTENTO_SEGUNDOS
+        if not forzar and _estado and time.time() - _estado["buscado"] < vigencia:
             return dict(_estado)
         info = {"buscado": time.time(), "buscado_en": time.strftime("%Y-%m-%d %H:%M"), "error": None,
                 "nueva": None, "notas": "", "url_release": None, "zip": None, "sha256": None}
@@ -85,7 +103,7 @@ def buscar(forzar: bool = False) -> dict:
                         info["sha256"] = assets[zips[0] + ".sha256"]
             except urllib.error.HTTPError as e:
                 # 404 en releases/latest: el repositorio existe pero todavía no publicó ninguna versión (no es una falla)
-                info["error"] = None if e.code == 404 else f"No se pudo consultar GitHub (HTTP {e.code})."
+                info["error"] = None if e.code == 404 else _explicar_http(e)
             except Exception as e:   # sin internet, repositorio mal escrito, límite de GitHub: no es un error de la app
                 info["error"] = f"No se pudo consultar GitHub ({type(e).__name__}: {e})."
         _estado.clear()
