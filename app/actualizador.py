@@ -18,6 +18,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from datetime import date, timedelta
@@ -82,6 +83,9 @@ def buscar(forzar: bool = False) -> dict:
                     info["zip"] = {"nombre": zips[0], "url": assets[zips[0]]}
                     if zips[0] + ".sha256" in assets:
                         info["sha256"] = assets[zips[0] + ".sha256"]
+            except urllib.error.HTTPError as e:
+                # 404 en releases/latest: el repositorio existe pero todavía no publicó ninguna versión (no es una falla)
+                info["error"] = None if e.code == 404 else f"No se pudo consultar GitHub (HTTP {e.code})."
             except Exception as e:   # sin internet, repositorio mal escrito, límite de GitHub: no es un error de la app
                 info["error"] = f"No se pudo consultar GitHub ({type(e).__name__}: {e})."
         _estado.clear()

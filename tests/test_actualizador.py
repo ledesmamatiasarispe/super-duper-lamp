@@ -86,6 +86,10 @@ def test_sin_sha256_no_es_instalable_y_sin_internet_no_rompe(api, github):
     github[act.API.format(repo="romero/mantenimiento")] = OSError("sin red")
     a = api.post("/api/actualizacion/buscar").json()
     assert "No se pudo consultar GitHub" in a["error"] and not a["disponible"]
+    # un repositorio sin ningún release todavía no es un error: simplemente no hay versión nueva
+    github[act.API.format(repo="romero/mantenimiento")] = act.urllib.error.HTTPError("u", 404, "Not Found", {}, None)
+    a = api.post("/api/actualizacion/buscar").json()
+    assert a["error"] is None and not a["disponible"]
 
 
 def test_preparar_controla_el_hash_y_descomprime(github, tmp_path):
