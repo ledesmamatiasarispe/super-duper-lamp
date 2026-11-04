@@ -6,7 +6,7 @@ reemplaza (útil para probar con otro repositorio); vacío desactiva la búsqued
 import os
 import sys
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 REPO = os.environ.get("MANT_REPO", "ledesmamatiasarispe/super-duper-lamp")
 
 # la versión compilada (PyInstaller) es la única que se actualiza sola: en desarrollo se usa git

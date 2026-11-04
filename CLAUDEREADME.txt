@@ -7,7 +7,7 @@ se cometieron una vez. Si cambiás algo de lo que dice acá, actualizalo en el m
 
 1. QUÉ ES
 ---------
-UltraMantenimiento (logo: herradura blanca sobre azul #17324d; frontend/logo.svg e icono.svg, y el .ico del exe
+UltraMantenimiento (logo: omega invertida ℧ blanca, estilo Ultramarines, sobre azul #17324d; frontend/logo.svg e icono.svg, y el .ico del exe
 en herramientas/ultramantenimiento.ico, generado por herramientas/icono.py con la misma geometría).
 App web de MANTENIMIENTO PREVENTIVO y correctivo de una planta (Fundición Romero). Reemplaza una planilla Excel
 de cronograma. La usan administradores (configuran) y usuarios de mantenimiento (registran trabajos), desde PCs y
