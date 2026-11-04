@@ -108,6 +108,8 @@ La idea en una línea:
 - Variables `let`/`const` de app.js no existen si app.js falla antes de llegar a ellas (las function sí, por hoisting):
   si un test en página suelta da "X is not defined", cargá una copia de index.html, no una página vacía.
 - uvicorn compilado: pasar el objeto app, no el string "app.main:app".
+- Ayuda guiada en headless: requestAnimationFrame casi no corre, así que el recuadro quedaba atrasado. ubicar() se llama
+  enseguida, además del rAF.
 
 
 6. VERSIÓN COMPILADA Y ACTUALIZACIONES
@@ -121,4 +123,25 @@ La idea en una línea:
   Instalar: baja el .zip, exige y verifica el .sha256, descomprime en data/actualizacion/, y un .bat en %TEMP% espera
   que el proceso termine, hace robocopy /E (sin /MIR, excluye data/), relanza el exe y limpia. Log en
   data/actualizacion.log. Probado de punta a punta con un servidor local (MANT_API_ACTUALIZACION).
-- Repositorio: github.com/ledesmamatiasarispe/super-duper-lamp.
+- La consulta a GitHub se guarda 6 horas si salió bien, y 10 minutos si falló (_REINTENTO_SEGUNDOS). Un 404 en
+  releases/latest (repo sin releases) no es un error.
+- LÍMITE DE GITHUB: la API sin usuario permite 60 consultas por hora POR IP, y toda la red de la planta sale con la misma
+  IP. Si un agente consulta la API en bucle (por ejemplo, para vigilar un release), la app de los usuarios empieza a ver
+  "HTTP 403". _explicar_http lo traduce a un mensaje con la hora en que se libera. Para vigilar un release, consultar
+  pocas veces o mirar la página de Actions en el navegador.
+- Repositorio: github.com/ledesmamatiasarispe/super-duper-lamp (PÚBLICO: el actualizador baja los releases sin token;
+  no subir nunca datos, la base ni contraseñas). El push se hace por HTTPS: la clave SSH de esta PC no está registrada.
+- GitHub a veces responde 500/502 al push o al publicar el release ("Server Error", "Too many retries" en
+  softprops/action-gh-release). No es un error del proyecto: se reintenta el push (y se verifica con git ls-remote) o
+  se hace "Re-run failed jobs" en Actions.
+- Releases publicados: v1.0.0 (logo herradura), v1.0.1 (logo omega ℧). En main hay cambios posteriores sin release
+  (mensaje del límite de GitHub + reintento a los 10 minutos): salen en la próxima versión.
+
+
+7. DATOS REALES Y MIGRACIONES YA HECHAS
+---------------------------------------
+- separar_instructivos_compartidos ya corrió sobre la base real: IT01 estaba compartido por EQ-001 y EQ-003; EQ-003
+  quedó con su copia IT03. La función sigue corriendo al arrancar (es idempotente) por si aparece otra base vieja.
+- El instructivo de ejemplo (IT04, "EJEMPLO · Bomba centrífuga") está cargado en la base real, revisión 1.
+- Copias de seguridad tomadas antes de cada migración, en data/: mantenimiento_antes_de_orden.db,
+  mantenimiento_antes_de_separar_instructivos.db, mantenimiento_antes_de_ejemplo.db.
