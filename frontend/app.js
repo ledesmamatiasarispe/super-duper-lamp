@@ -433,29 +433,35 @@ VISTAS.inicio = async () => {
   const p = await api('/api/pendientes');
   const hoy = new Date(p.hoy + 'T00:00');
   const c = p.cumplimiento;
-  const fila = (t, extra) => `<div class="item"><div><b>${esc(t.codigo)}</b> · ${esc(t.equipo)}<br>
-      <span class="sutil"><a onclick="irA('instructivos/${t.instructivo_id}')">${esc(t.seccion)}</a> · ${esc(t.frecuencia)}${t.responsable ? ' · ' + esc(t.responsable) : ''}${extra || ''}</span></div>
-      <button class="chico primario" onclick="modalRegistro(${t.tarea_id})">Registrar</button></div>`;
+  // tablas a todo el ancho, una debajo de la otra: en columnas angostas los nombres largos quedaban cortados
+  const tabla = (titulos, filas, vacio) => `<div class="tabla-wrap"><table><thead><tr>${titulos.map(t => `<th>${t}</th>`).join('')}</tr></thead>
+    <tbody>${filas.join('') || `<tr><td colspan="${titulos.length}" class="vacio">${vacio}</td></tr>`}</tbody></table></div>`;
+  const registrar = id => `<td class="botones"><button class="chico primario" onclick="modalRegistro(${id})">Registrar</button></td>`;
+  const fila = (t, cuando) => `<tr><td><b>${esc(t.codigo)}</b></td><td>${esc(t.equipo)}</td>
+    <td><a onclick="irA('instructivos/${t.instructivo_id}')">${esc(t.seccion)}</a></td><td>${esc(t.frecuencia)}</td>
+    <td>${esc(cuando)}</td><td>${esc(t.responsable || '')}</td>${registrar(t.tarea_id)}</tr>`;
   const estadoHoras = s => ({ vencido: ['rojo', `Vencido por ${miles(-s.faltan)} h`], proximo: ['ambar', `Faltan ${miles(s.faltan)} h`],
     sin_lectura: ['azul', 'Sin lectura de horómetro'], falta_dato: ['azul', 'Falta el próximo inicial en el Plan'] }[s.estado]);
+  const MANT = ['Tarea', 'Equipo', 'Mantenimiento', 'Frecuencia'];
   $('#vista').innerHTML = `
     <div class="encabezado"><h2>Hoy, ${hoy.getDate()} de ${MESES_LARGOS[hoy.getMonth()]}</h2>
       <div class="botones"><button class="primario" onclick="modalRegistro()">Registrar mantenimiento</button>
       <button onclick="modalCorrectivo()">Registrar correctivo</button></div></div>
-    <div class="grilla">
-      <div class="tarjeta"><h3>Cumplimiento ${hoy.getFullYear()}</h3>
-        <div class="numero-grande">${c.porcentaje == null ? '—' : c.porcentaje + ' %'}</div>
-        <p class="sutil">${c.cumplidas} de ${c.esperadas} servicios de los meses cerrados.</p></div>
-      <div class="tarjeta"><h3>Este mes <span class="chip azul">${p.este_mes.length}</span></h3>
-        ${p.este_mes.map(t => fila(t, t.faltan > 1 ? ` · faltan ${t.faltan}` : '')).join('') || '<p class="sutil">Nada pendiente.</p>'}</div>
-      <div class="tarjeta"><h3>Atrasados <span class="chip ${p.atrasados.length ? 'rojo' : 'verde'}">${p.atrasados.length}</span></h3>
-        ${p.atrasados.map(t => fila(t, ` · de ${MESES_LARGOS[t.mes - 1]}`)).join('') || '<p class="sutil">Nada atrasado.</p>'}</div>
-      <div class="tarjeta"><h3>Servicios por horas</h3>
-        ${p.por_horas.map(s => { const [col, txt] = estadoHoras(s); return `<div class="item"><div><b>${esc(s.codigo)}</b> · ${esc(s.equipo)}<br>
-          <span class="sutil">${esc(s.seccion)} · cada ${miles(s.cada_horas)} h</span></div><span class="chip ${col}">${txt}</span></div>`; }).join('')
-          || '<p class="sutil">Ninguno cerca de vencer.</p>'}
-        <p><a onclick="irA('horometros')">Ver horómetros</a></p></div>
-    </div>`;
+    <div class="tarjeta inicio-cumplimiento"><h3>Cumplimiento ${hoy.getFullYear()}</h3>
+      <span class="numero-grande">${c.porcentaje == null ? '—' : c.porcentaje + ' %'}</span>
+      <span class="sutil">${c.cumplidas} de ${c.esperadas} servicios de los meses cerrados.</span></div>
+    <div class="tarjeta"><h3>Este mes <span class="chip azul">${p.este_mes.length}</span></h3>
+      ${tabla([...MANT, 'Pendiente', 'Responsable', ''], p.este_mes.map(t => fila(t, t.faltan > 1 ? `faltan ${t.faltan}` : '')), 'Nada pendiente.')}</div>
+    <div class="tarjeta"><h3>Atrasados <span class="chip ${p.atrasados.length ? 'rojo' : 'verde'}">${p.atrasados.length}</span></h3>
+      ${tabla([...MANT, 'De', 'Responsable', ''], p.atrasados.map(t => fila(t, MESES_LARGOS[t.mes - 1])), 'Nada atrasado.')}</div>
+    <div class="tarjeta"><h3>Servicios por horas <span class="chip ${p.por_horas.some(s => s.estado === 'vencido') ? 'rojo' : 'azul'}">${p.por_horas.length}</span></h3>
+      ${tabla(['Tarea', 'Equipo', 'Mantenimiento', 'Cada', 'Última lectura', 'Próximo a', 'Estado', ''], p.por_horas.map(s => {
+        const [col, txt] = estadoHoras(s);
+        return `<tr><td><b>${esc(s.codigo)}</b></td><td>${esc(s.equipo)}</td><td>${esc(s.seccion)}</td><td>${miles(s.cada_horas)} h</td>
+          <td>${s.ultima_lectura == null ? '—' : miles(s.ultima_lectura) + ' h'}</td><td>${s.proximo == null ? '—' : miles(s.proximo) + ' h'}</td>
+          <td><span class="chip ${col}">${txt}</span></td>${registrar(s.tarea_id)}</tr>`;
+      }), 'Ninguno cerca de vencer.')}
+      <p><a onclick="irA('horometros')">Ver horómetros</a></p></div>`;
 };
 
 // ── CRONOGRAMA ──

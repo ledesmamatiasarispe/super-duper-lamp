@@ -203,7 +203,7 @@
         + 'Cuentan como hechos los registrados como <b>Realizado</b> o <b>Con observaciones</b>.' },
       { el: () => tarjeta('Este mes'), titulo: 'Este mes', texto: 'Las tareas que tocan este mes y todavía no se registraron. Cuando una se registra, desaparece de la lista. '
         + 'Si dice <b>"faltan 2"</b> es una tarea que se hace más de una vez por mes (por ejemplo, quincenal).' },
-      { el: () => todos('.grilla .item', vista()).find(i => i.querySelector('button')), titulo: 'Cada tarea pendiente', texto: 'Arriba, el código de la tarea y el equipo. Abajo, la sección del instructivo (tocala para ver qué actividades lleva), la frecuencia y el responsable. '
+      { el: () => enVista('table tbody tr button')?.closest('tr'), titulo: 'Cada tarea pendiente', texto: 'Una fila por tarea: el código, el equipo, la sección del instructivo (tocala para ver qué actividades lleva), la frecuencia y el responsable. '
         + '<b>Registrar</b> abre el formulario con esa tarea ya elegida.' },
       { el: () => tarjeta('Atrasados'), titulo: 'Atrasados', texto: 'Lo que tocaba en <b>meses anteriores</b> y no se registró: en el Cronograma figura como vencido (✗). '
         + 'Si se hizo y no se anotó, registralo con la fecha real; si se hizo tarde, con la fecha en que se hizo.' },

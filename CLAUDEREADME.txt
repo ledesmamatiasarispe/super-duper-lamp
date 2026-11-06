@@ -144,7 +144,8 @@ La idea en una línea:
   se hace "Re-run failed jobs" en Actions.
 - Releases publicados: v1.0.0 (logo herradura), v1.0.1 (logo omega ℧), v1.0.2 (botón "Programar todos" en Opciones,
   mensaje del límite de GitHub + reintento a los 10 minutos), v1.0.3 ("Repartir meses" dentro de Programar todos;
-  la página pide app.js/styles.css con ?v=VERSION y se sirve sin caché, así después de actualizar no hace falta Ctrl+F5).
+  la página pide app.js/styles.css con ?v=VERSION y se sirve sin caché, así después de actualizar no hace falta Ctrl+F5),
+  v1.0.4 (Inicio con las tablas a todo el ancho, una debajo de la otra: en columnas se cortaban los nombres).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -156,5 +157,10 @@ La idea en una línea:
   con herramientas/cargar_fichas.py: 28 equipos (códigos = cronograma 2027), IT01..IT26 + IT27 (copia de IT06 para
   la Noyera N° 2). La ficha 25 (Amoladoras) no se cargó: no es un preventivo. El Plan quedó VACÍO: se programa con "Programar todos" (v1.0.2).
   Copia previa: data/mantenimiento_antes_de_fichas.db y data/adjuntos_antes_de_fichas/.
+- 2026-11-06: se cargaron 25 correctivos del historial en papel PG713.01 (2023-12 a 2025-12, todos con SGC = Sí) y
+  las personas Vallejo, Matías Arispe, Damián, Néstor y Pedro (estos dos dados de baja: renunciaron en 2026-10).
+  El script tiene los datos adentro, por eso NO está en el repo: quedó en data/cargar_correctivos.py. Las fallas se
+  redactaron a mano (la planilla solo las traía en el Horno). Una persona por correctivo; las demás en observaciones.
+  Copia previa: data/mantenimiento_antes_de_correctivos.db.
 - Copias de seguridad tomadas antes de cada migración, en data/: mantenimiento_antes_de_orden.db,
   mantenimiento_antes_de_separar_instructivos.db, mantenimiento_antes_de_ejemplo.db.

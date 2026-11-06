@@ -30,6 +30,8 @@ a { color: var(--azul); cursor: pointer; }
 main { max-width: 1280px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 .encabezado { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.inicio-cumplimiento { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; }
+.inicio-cumplimiento h3 { margin: 0; }
 .grilla { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .numero-grande { font-size: 2.2rem; font-weight: 700; }
 
