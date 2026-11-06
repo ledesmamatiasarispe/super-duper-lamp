@@ -228,3 +228,10 @@ def test_eliminar_equipo_solo_si_no_tiene_nada_vinculado(api):
     assert "correctivos" in error(api.delete(f"/api/equipos/{otro['id']}"))
     granalla = next(e for e in api.get("/api/equipos").json() if e["codigo"] == "EQ-002")
     assert "tareas en el Plan" in error(api.delete(f"/api/equipos/{granalla['id']}"))
+
+
+def test_la_pagina_pide_los_archivos_con_la_version(api):
+    from app.version import VERSION
+    r = api.get("/")
+    assert r.headers["cache-control"] == "no-cache"
+    assert f'/static/app.js?v={VERSION}"' in r.text and f'/static/styles.css?v={VERSION}"' in r.text

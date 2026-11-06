@@ -80,7 +80,9 @@ La idea en una línea:
   (requiere equipo con horómetro); "Según condición" no se programa.
   "Programar todos" (Opciones, admin): lista cada sección que un equipo activo no tiene en el Plan, con la frecuencia
   sugerida por la tabla "Frecuencias" del instructivo (sv.tareas_sin_programar); se guardan todas o ninguna
-  (sv.programar_tareas, mismas reglas que una tarea suelta vía _insertar_tarea).
+  (sv.programar_tareas, mismas reglas que una tarea suelta vía _insertar_tarea). "Repartir meses" (solo pantalla,
+  repartirMeses en app.js) elige los meses de inicio para emparejar la carga mensual contando el Plan activo; usa los
+  intervalos de cal.INTERVALO_MESES que manda /api/opciones ("intervalos"), no una copia en JS.
 - CUMPLIMIENTO: solo meses cerrados. A favor: Realizado, Con observaciones. En contra: No realizado,
   Reprogramado. Neutro: No aplica. "antes_alta" (mes previo a cargar la tarea) no cuenta.
 - Las lecturas de horómetro se cargan desde Registros (en el registro del servicio o sueltas).
@@ -141,7 +143,8 @@ La idea en una línea:
   softprops/action-gh-release). No es un error del proyecto: se reintenta el push (y se verifica con git ls-remote) o
   se hace "Re-run failed jobs" en Actions.
 - Releases publicados: v1.0.0 (logo herradura), v1.0.1 (logo omega ℧), v1.0.2 (botón "Programar todos" en Opciones,
-  mensaje del límite de GitHub + reintento a los 10 minutos).
+  mensaje del límite de GitHub + reintento a los 10 minutos), v1.0.3 ("Repartir meses" dentro de Programar todos;
+  la página pide app.js/styles.css con ?v=VERSION y se sirve sin caché, así después de actualizar no hace falta Ctrl+F5).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS

@@ -187,9 +187,12 @@ async function modalProgramarTodos() {
   abrirModal(`
     <h2>Programar todos</h2>
     <p class="sutil">${lista.length} secciones sin programar. Las que no tienen una frecuencia sugerida quedan sin marcar:
-      elegirla y marcarlas, o dejarlas para después. Los meses de inicio vienen en enero; conviene repartirlos.</p>
+      elegirla y marcarlas, o dejarlas para después. Los meses de inicio vienen en enero: <b>Repartir meses</b> los distribuye
+      para que no se junten los trabajos.</p>
     <form id="f-programar">
       <div class="campos"><label style="max-width:24rem">Responsable (para todas) <select name="responsable_id">${personasSelect('', '—', 'general')}</select></label></div>
+      <div class="botones"><button type="button" class="repartir">Repartir meses</button>
+        <span class="sutil carga" title="Trabajos por mes: lo que ya está en el Plan más lo marcado en esta lista"></span></div>
       <div class="tabla-wrap"><table><thead><tr><th><input type="checkbox" class="todas" title="Marcar o desmarcar todas"></th>
         <th>Equipo</th><th>Mantenimiento</th><th>Según la ficha</th><th>Frecuencia</th><th>Mes de inicio</th><th>Cada (h)</th></tr></thead><tbody>
         ${lista.map((t, i) => `<tr data-i="${i}"><td><input type="checkbox" class="usar" ${t.frecuencia ? 'checked' : ''}></td>
@@ -211,7 +214,10 @@ async function modalProgramarTodos() {
     const n = filas.filter(tr => $('.usar', tr).checked).length;
     $('button[type=submit]', f).textContent = `Programar ${n}`;
     Object.assign($('.todas', f), { checked: n === filas.length, indeterminate: n > 0 && n < filas.length });
+    const carga = cargaPorMes(f, filas);
+    $('.carga', f).textContent = 'Trabajos por mes: ' + carga.map((n, m) => `${MESES[m]} ${n}`).join(' · ');
   };
+  $('.repartir', f).addEventListener('click', () => { repartirMeses(f, filas); contar(); });
   filas.forEach(tr => {
     ver(tr);
     $('.frecuencia', tr).addEventListener('change', () => {
@@ -240,6 +246,44 @@ async function modalProgramarTodos() {
       avisar(`Se programaron ${r.length} tareas.`); irA('plan');
     });
   });
+}
+
+/** Cuántos trabajos caen en cada mes (0 = enero), igual que calendario.veces_por_mes: el Plan activo más las filas marcadas. */
+function cargaPorMes(f, filas) {
+  const intervalos = S.opciones.intervalos, carga = Array(12).fill(0);
+  const sumar = (frecuencia, inicio, especificos) => {
+    const veces = frecuencia === 'Quincenal' ? 2 : 1;
+    const lista = String(especificos || '').split(',').map(Number).filter(Boolean);
+    if (lista.length) return lista.forEach(m => { carga[m - 1] += veces; });
+    const k = intervalos[frecuencia];
+    if (!k || !inicio) return;
+    for (let m = Number(inicio); m <= 12; m += k) carga[m - 1] += veces;
+    for (let m = Number(inicio) - k; m >= 1; m -= k) carga[m - 1] += veces;
+  };
+  S.tareas.filter(t => t.activa).forEach(t => sumar(t.frecuencia, t.mes_inicio, t.meses_especificos));
+  filas.filter(tr => $('.usar', tr).checked).forEach(tr => sumar($('.frecuencia', tr).value, $('.mes', tr).value));
+  return carga;
+}
+
+/** Elige el mes de inicio de cada fila marcada para emparejar la carga mensual. Primero las más frecuentes
+ *  (dejan el patrón de base) y después las espaciadas, cada una en la fase cuyos meses estén más libres. */
+function repartirMeses(f, filas) {
+  const intervalos = S.opciones.intervalos;
+  const porMes = filas.filter(tr => $('.usar', tr).checked && intervalos[$('.frecuencia', tr).value]);
+  porMes.forEach(tr => { $('.mes', tr).value = ''; });   // las que se reparten no cuentan hasta que se ubiquen
+  porMes.sort((a, b) => intervalos[$('.frecuencia', a).value] - intervalos[$('.frecuencia', b).value]);
+  for (const tr of porMes) {
+    const k = intervalos[$('.frecuencia', tr).value], carga = cargaPorMes(f, filas);
+    let mejor = 1, puntaje = Infinity;
+    for (let inicio = 1; inicio <= k; inicio++) {
+      const meses = carga.filter((_, m) => (m + 1 - inicio) % k === 0);
+      const p = meses.reduce((s, n) => s + n, 0) * 1000 + Math.max(...meses);   // los meses más libres; a igualdad, sin picos
+      if (p < puntaje) { puntaje = p; mejor = inicio; }
+    }
+    $('.mes', tr).value = String(mejor);
+  }
+  avisar(porMes.length ? `Se repartieron ${porMes.length} meses de inicio. Se pueden retocar a mano antes de guardar.`
+    : 'No hay filas marcadas con frecuencia por meses para repartir.');
 }
 
 async function buscarActualizacion(boton) {

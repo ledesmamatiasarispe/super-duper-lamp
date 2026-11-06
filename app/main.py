@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import Body, Depends, FastAPI, File, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import actualizador, auth, servicios as sv, usuarios
@@ -47,7 +47,12 @@ async def _no_encontrado(_req: Request, e: sv.NoEncontrado):
 
 @app.get("/", include_in_schema=False)
 def pantalla():
-    return FileResponse(FRONTEND / "index.html")
+    """La página pide sus .js y .css con la versión (app.js?v=1.0.3): al actualizar cambia la dirección y el navegador
+    baja los nuevos en vez de seguir con los de su caché. La página misma no se guarda, para que siempre traiga la versión."""
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    for ext in (".js", ".css"):
+        html = html.replace(f'{ext}"', f'{ext}?v={VERSION}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 # ── sesión ──
@@ -142,7 +147,7 @@ def restablecer_password(legajo: int, body: dict = Body(...), u: dict = Admin):
 # ── listas para los formularios ──
 @app.get("/api/opciones")
 def opciones(u: dict = Usuario):
-    return {"frecuencias": cal.FRECUENCIAS, "resultados": cal.RESULTADOS, "personas": sv.listar_personas(),
+    return {"frecuencias": cal.FRECUENCIAS, "intervalos": cal.INTERVALO_MESES, "resultados": cal.RESULTADOS, "personas": sv.listar_personas(),
             "equipos": sv.listar_equipos(), "secciones": sv.secciones_disponibles(), "areas": sv.listar_areas()}
 
 

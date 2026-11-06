@@ -359,7 +359,8 @@
       { el: () => boton('Buscar ahora'), titulo: 'Buscar ahora', texto: 'Vuelve a consultar si salió una versión nueva, sin esperar al próximo arranque.' },
       { el: () => boton('Actualizar ahora'), titulo: 'Actualizar ahora', texto: 'Baja la versión nueva, comprueba que el archivo esté sano, y la app se cierra y vuelve a abrir sola. La base de datos y los archivos adjuntos no se tocan.' },
       { el: () => boton('Programar todos'), titulo: 'Programar todos (solo administradores)', texto: 'Arma de una vez las tareas del Plan que faltan: una por cada sección de instructivo que un equipo todavía no tiene programada. '
-        + 'La frecuencia viene sugerida por la tabla «Frecuencias» del instructivo; se revisa en la lista (frecuencia, mes de inicio, horas) y se guardan todas juntas.' },
+        + 'La frecuencia viene sugerida por la tabla «Frecuencias» del instructivo; se revisa en la lista (frecuencia, mes de inicio, horas) y se guardan todas juntas. '
+        + '<b>Repartir meses</b> elige los meses de inicio para que los trabajos no se junten en los mismos meses, contando también lo que ya está en el Plan.' },
     ],
 
     // ── formularios del modal ──
