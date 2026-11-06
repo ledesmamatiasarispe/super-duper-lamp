@@ -78,6 +78,9 @@ La idea en una línea:
 - PLAN: una tarea = sección + equipo + frecuencia. Solo secciones de los instructivos DE ESE equipo, y cada
   sección UNA sola vez por equipo (activa). Frecuencias por mes -> Cronograma; "Por horas" -> Horómetros
   (requiere equipo con horómetro); "Según condición" no se programa.
+  "Programar todos" (Opciones, admin): lista cada sección que un equipo activo no tiene en el Plan, con la frecuencia
+  sugerida por la tabla "Frecuencias" del instructivo (sv.tareas_sin_programar); se guardan todas o ninguna
+  (sv.programar_tareas, mismas reglas que una tarea suelta vía _insertar_tarea).
 - CUMPLIMIENTO: solo meses cerrados. A favor: Realizado, Con observaciones. En contra: No realizado,
   Reprogramado. Neutro: No aplica. "antes_alta" (mes previo a cargar la tarea) no cuenta.
 - Las lecturas de horómetro se cargan desde Registros (en el registro del servicio o sueltas).
@@ -137,8 +140,8 @@ La idea en una línea:
 - GitHub a veces responde 500/502 al push o al publicar el release ("Server Error", "Too many retries" en
   softprops/action-gh-release). No es un error del proyecto: se reintenta el push (y se verifica con git ls-remote) o
   se hace "Re-run failed jobs" en Actions.
-- Releases publicados: v1.0.0 (logo herradura), v1.0.1 (logo omega ℧). En main hay cambios posteriores sin release
-  (mensaje del límite de GitHub + reintento a los 10 minutos): salen en la próxima versión.
+- Releases publicados: v1.0.0 (logo herradura), v1.0.1 (logo omega ℧), v1.0.2 (botón "Programar todos" en Opciones,
+  mensaje del límite de GitHub + reintento a los 10 minutos).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -148,7 +151,7 @@ La idea en una línea:
 - El instructivo de ejemplo ("EJEMPLO · Bomba centrífuga") está cargado en la base real, revisión 1, con código EJ01.
 - 2026-11-06: se borraron los datos de prueba (EQ-001..003, IT01..03, 7 tareas) y se cargaron las 26 fichas originales
   con herramientas/cargar_fichas.py: 28 equipos (códigos = cronograma 2027), IT01..IT26 + IT27 (copia de IT06 para
-  la Noyera N° 2). La ficha 25 (Amoladoras) no se cargó: no es un preventivo. El Plan quedó VACÍO: falta programarlo.
+  la Noyera N° 2). La ficha 25 (Amoladoras) no se cargó: no es un preventivo. El Plan quedó VACÍO: se programa con "Programar todos" (v1.0.2).
   Copia previa: data/mantenimiento_antes_de_fichas.db y data/adjuntos_antes_de_fichas/.
 - Copias de seguridad tomadas antes de cada migración, en data/: mantenimiento_antes_de_orden.db,
   mantenimiento_antes_de_separar_instructivos.db, mantenimiento_antes_de_ejemplo.db.

@@ -52,3 +52,34 @@ def test_solo_secciones_de_los_instructivos_del_equipo(api):
     assert "lista" in error(api.put(f"/api/equipos/{eq['EQ-002']}/instructivos", json={"instructivo_ids": "x"}))
     equipo = next(e for e in api.get("/api/equipos").json() if e["codigo"] == "EQ-002")
     assert equipo["instructivo_ids"] == [secciones["IT02-A"]["instructivo_id"]]
+
+
+def test_programar_todos_ofrece_lo_que_falta_y_guarda_todo_o_nada(api):
+    eq, sec = ids(api)
+    # los ejemplos ya tienen todo programado; al darle de baja una tarea, su sección vuelve a ofrecerse
+    t = tarea(api, "EQ-002-2")
+    assert api.get("/api/tareas/sin-programar").json() == []
+    api.post(f"/api/tareas/{t['id']}/baja")
+    falta = api.get("/api/tareas/sin-programar").json()
+    assert [(x["equipo_codigo"], x["seccion"]) for x in falta] == [("EQ-002", "IT02-B")]
+    # si una falla no se guarda ninguna, y el error dice cuál
+    buena = {"equipo_id": eq["EQ-002"], "seccion_id": sec["IT02-B"], "frecuencia": "Semestral", "mes_inicio": 3}
+    mala = {"equipo_id": eq["EQ-002"], "seccion_id": sec["IT02-A"], "frecuencia": "Mensual", "mes_inicio": 1}
+    assert "EQ-002 IT02-A: IT02-A ya está programada" in error(api.post("/api/tareas/lote", json={"tareas": [buena, mala]}))
+    assert len(api.get("/api/tareas/sin-programar").json()) == 1
+    r = api.post("/api/tareas/lote", json={"tareas": [buena]})
+    assert r.status_code == 200 and [x["codigo"] for x in r.json()] == ["EQ-002-3"]
+    assert api.get("/api/tareas/sin-programar").json() == []
+    assert "No hay tareas" in error(api.post("/api/tareas/lote", json={"tareas": []}))
+
+
+def test_frecuencia_sugerida_por_la_ficha():
+    from app.servicios import _frecuencia_sugerida as sug
+    assert sug("Cada tres meses", False) == {"frecuencia": "Trimestral"}
+    assert sug("Cada 4 meses", False) == {"frecuencia": "Cuatrimestral"}
+    assert sug("Cada 12 meses", False) == {"frecuencia": "Anual"}
+    assert sug("Mensual", False) == {"frecuencia": "Mensual"}
+    assert sug("Cada 8 meses", False) == {}
+    assert sug("Cada 1000 horas", True) == {"frecuencia": "Por horas", "cada_horas": 1000}
+    assert sug("Cada 1000 horas", False) == {}
+    assert sug("", True) == {}

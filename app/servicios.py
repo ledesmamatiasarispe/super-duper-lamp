@@ -1075,21 +1075,96 @@ def _exigir_no_programada(c, equipo_id: int, seccion_id: int, excepto: int | Non
                              "Para cambiarle la frecuencia, editar esa tarea.")
 
 
+def _insertar_tarea(c, usuario: dict, datos: dict) -> int:
+    d = _datos_tarea(c, datos)
+    if not d["seccion"]["vigente"]:
+        raise ErrorDeNegocio(f"{d['seccion']['codigo']} es de un instructivo obsoleto.")
+    _exigir_no_programada(c, d["equipo_id"], d["seccion"]["id"])
+    numero = c.execute("SELECT coalesce(max(numero), 0) + 1 FROM tareas WHERE equipo_id=?", (d["equipo_id"],)).fetchone()[0]
+    c.execute("INSERT INTO tareas (equipo_id, numero, seccion_id, frecuencia, mes_inicio, meses_especificos, cada_horas, "
+              "proximo_inicial, responsable_id, observaciones, creado_por, creado_en, modificado_por, modificado_en) "
+              "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              (d["equipo_id"], numero, d["seccion"]["id"], d["frecuencia"], d["mes_inicio"], d["meses_especificos"],
+               d["cada_horas"], d["proximo_inicial"], d["responsable_id"], d["observaciones"],
+               usuario["nombre"], _ahora(), usuario["nombre"], _ahora()))
+    return c.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
 def crear_tarea(usuario: dict, **datos) -> dict:
     with transaccion() as c:
-        d = _datos_tarea(c, datos)
-        if not d["seccion"]["vigente"]:
-            raise ErrorDeNegocio(f"{d['seccion']['codigo']} es de un instructivo obsoleto.")
-        _exigir_no_programada(c, d["equipo_id"], d["seccion"]["id"])
-        numero = c.execute("SELECT coalesce(max(numero), 0) + 1 FROM tareas WHERE equipo_id=?", (d["equipo_id"],)).fetchone()[0]
-        c.execute("INSERT INTO tareas (equipo_id, numero, seccion_id, frecuencia, mes_inicio, meses_especificos, cada_horas, "
-                  "proximo_inicial, responsable_id, observaciones, creado_por, creado_en, modificado_por, modificado_en) "
-                  "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                  (d["equipo_id"], numero, d["seccion"]["id"], d["frecuencia"], d["mes_inicio"], d["meses_especificos"],
-                   d["cada_horas"], d["proximo_inicial"], d["responsable_id"], d["observaciones"],
-                   usuario["nombre"], _ahora(), usuario["nombre"], _ahora()))
-        tid = c.execute("SELECT last_insert_rowid()").fetchone()[0]
+        tid = _insertar_tarea(c, usuario, datos)
         return dict(c.execute(_SQL_TAREAS + "WHERE t.id=?", (tid,)).fetchone())
+
+
+_FRECUENCIA_POR_MESES = {1: "Mensual", 2: "Bimestral", 3: "Trimestral", 4: "Cuatrimestral", 6: "Semestral", 12: "Anual"}
+_NUMEROS = {"un": 1, "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "seis": 6, "ocho": 8, "doce": 12}
+
+
+def _frecuencia_sugerida(texto: str, usa_horometro: bool) -> dict:
+    """'Cada tres meses' -> Trimestral; 'Cada 1000 horas' -> Por horas cada 1000 (si el equipo tiene horómetro).
+    Lo que no encaja en una frecuencia de la app (ej. 'Cada 8 meses') queda sin sugerir, para elegirlo a mano."""
+    t = (texto or "").lower().replace(".", "")
+    for palabra, n in _NUMEROS.items():
+        t = re.sub(rf"\b{palabra}\b", str(n), t)
+    if m := re.search(r"(\d+)\s*(h|hs|horas?)\b", t):
+        return {"frecuencia": cal.POR_HORAS, "cada_horas": int(m.group(1))} if usa_horometro else {}
+    if m := re.search(r"(\d+)\s*mes", t):
+        return {"frecuencia": _FRECUENCIA_POR_MESES[int(m.group(1))]} if int(m.group(1)) in _FRECUENCIA_POR_MESES else {}
+    if re.search(r"\bcada mes\b", t):
+        return {"frecuencia": "Mensual"}
+    return next(({"frecuencia": f} for f in cal.FRECUENCIAS if f.lower() in t), {})
+
+
+def _frecuencias_de_la_ficha(bloques: str | None) -> dict[str, str]:
+    """La tabla 'Frecuencias' del instructivo (letra de la sección -> texto), si la tiene."""
+    for b in json.loads(bloques or "[]"):
+        datos = b.get("datos") or {}
+        if str(datos.get("titulo", "")).strip().lower() == "frecuencias":
+            filas = (datos.get("filas") or [])[1 if datos.get("encabezado") else 0:]
+            return {str(f[0]).strip().upper(): str(f[1]) for f in filas if len(f) >= 2}
+    return {}
+
+
+def tareas_sin_programar() -> list[dict]:
+    """Cada sección de un instructivo vigente que un equipo activo todavía no tiene en el Plan, con la frecuencia
+    sugerida por la tabla 'Frecuencias' del instructivo. Es lo que ofrece "Programar todos" (en Opciones)."""
+    with transaccion() as c:
+        filas = c.execute("""
+            SELECT e.id AS equipo_id, e.codigo AS equipo_codigo, e.nombre AS equipo, e.usa_horometro,
+                   s.id AS seccion_id, s.letra, i.codigo || '-' || s.letra AS seccion, i.id AS instructivo_id, i.bloques
+            FROM equipos e JOIN instructivo_equipos ie ON ie.equipo_id = e.id
+            JOIN instructivos i ON i.id = ie.instructivo_id AND i.vigente = 1 JOIN secciones s ON s.instructivo_id = i.id
+            WHERE e.activo = 1 AND NOT EXISTS (SELECT 1 FROM tareas t WHERE t.equipo_id = e.id AND t.seccion_id = s.id AND t.activa = 1)
+            ORDER BY e.codigo, i.codigo, s.letra""").fetchall()
+    salida = []
+    for r in filas:
+        d = dict(r)
+        texto = _frecuencias_de_la_ficha(d.pop("bloques")).get(d["letra"].upper(), "")
+        sugerida = _frecuencia_sugerida(texto, bool(d["usa_horometro"]))
+        salida.append({**d, "segun_ficha": texto, "frecuencia": sugerida.get("frecuencia"),
+                       "cada_horas": sugerida.get("cada_horas"),
+                       "mes_inicio": 1 if sugerida.get("frecuencia") in cal.INTERVALO_MESES else None})
+    return salida
+
+
+def programar_tareas(usuario: dict, tareas: list[dict]) -> list[dict]:
+    """Varias tareas de una vez ("Programar todos"): se programan todas o ninguna, y cada una pasa por las mismas
+    reglas que una suelta. El error dice cuál falló, para corregirla en la lista."""
+    if not tareas:
+        raise ErrorDeNegocio("No hay tareas para programar.")
+    with transaccion() as c:
+        ids = []
+        for datos in tareas:
+            try:
+                ids.append(_insertar_tarea(c, usuario, datos))
+            except ErrorDeNegocio as e:
+                eq = c.execute("SELECT codigo FROM equipos WHERE id=?", (datos.get("equipo_id"),)).fetchone()
+                sec = c.execute("SELECT i.codigo || '-' || s.letra FROM secciones s JOIN instructivos i ON i.id = s.instructivo_id "
+                                "WHERE s.id=?", (datos.get("seccion_id"),)).fetchone()
+                donde = " ".join(x[0] for x in (eq, sec) if x)
+                raise ErrorDeNegocio(f"{donde + ': ' if donde else ''}{e} No se programó ninguna.") from None
+        marcas = ",".join("?" * len(ids))
+        return [dict(r) for r in c.execute(_SQL_TAREAS + f"WHERE t.id IN ({marcas}) ORDER BY e.codigo, t.numero", ids)]
 
 
 def actualizar_tarea(usuario: dict, tarea_id: int, **datos) -> dict:

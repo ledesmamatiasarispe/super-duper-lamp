@@ -33,7 +33,9 @@ function avisar(texto, mal = false) {
   clearTimeout(_avisoTimer); _avisoTimer = setTimeout(() => a.classList.add('oculto'), mal ? 6000 : 3000);
 }
 
-function abrirModal(html) { $('#modal-cuerpo').innerHTML = html; $('#modal').showModal(); }
+function abrirModal(html, grande = false) {
+  $('#modal-cuerpo').innerHTML = html; $('#modal').classList.toggle('grande', grande); $('#modal').showModal();
+}
 function cerrarModal() { $('#modal').close(); }
 
 /** Lee un formulario a un objeto: los checkbox dan true/false, el resto texto crudo (lo valida el servidor). */
@@ -169,7 +171,75 @@ async function vistaOpciones() {
       ${estado}
       ${a.repo ? `<p class="sutil">Se busca en GitHub (${esc(a.repo)}) cada vez que arranca la app${a.buscado_en ? ' · última búsqueda: ' + esc(a.buscado_en) : ''}.</p>` : ''}
       ${admin && a.repo ? '<button onclick="buscarActualizacion(this)">Buscar ahora</button>' : ''}</div>
+    ${admin ? `<div class="tarjeta" id="op-plan"><h3>Plan de mantenimiento</h3>
+      <p class="sutil">Programa de una vez todas las secciones de instructivos que los equipos todavía no tienen en el Plan.
+        La frecuencia viene sugerida por la tabla «Frecuencias» de cada instructivo; antes de guardar se revisa y se corrige.</p>
+      <button class="primario" onclick="modalProgramarTodos()">Programar todos</button></div>` : ''}
     <div class="tarjeta"><h3>Próximamente</h3><p class="sutil">Acá se van a ir sumando opciones para ajustar la app a cada uno.</p></div>`;
+}
+
+/** "Programar todos": lista lo que falta en el Plan con la frecuencia sugerida, editable, y lo guarda todo junto. */
+async function modalProgramarTodos() {
+  let lista;
+  try { lista = await api('/api/tareas/sin-programar'); } catch (e) { return avisar(e.message, true); }
+  if (!lista.length) return avisar('No queda nada por programar: todos los equipos tienen sus secciones en el Plan.');
+  const frecuencias = S.opciones.frecuencias;
+  abrirModal(`
+    <h2>Programar todos</h2>
+    <p class="sutil">${lista.length} secciones sin programar. Las que no tienen una frecuencia sugerida quedan sin marcar:
+      elegirla y marcarlas, o dejarlas para después. Los meses de inicio vienen en enero; conviene repartirlos.</p>
+    <form id="f-programar">
+      <div class="campos"><label style="max-width:24rem">Responsable (para todas) <select name="responsable_id">${personasSelect('', '—', 'general')}</select></label></div>
+      <div class="tabla-wrap"><table><thead><tr><th><input type="checkbox" class="todas" title="Marcar o desmarcar todas"></th>
+        <th>Equipo</th><th>Mantenimiento</th><th>Según la ficha</th><th>Frecuencia</th><th>Mes de inicio</th><th>Cada (h)</th></tr></thead><tbody>
+        ${lista.map((t, i) => `<tr data-i="${i}"><td><input type="checkbox" class="usar" ${t.frecuencia ? 'checked' : ''}></td>
+          <td><b>${esc(t.equipo_codigo)}</b> · ${esc(t.equipo)}</td><td>${esc(t.seccion)}</td><td>${esc(t.segun_ficha || '—')}</td>
+          <td><select class="frecuencia">${opcionesSelect(frecuencias.filter(f => f !== 'Por horas' || t.usa_horometro).map(f => [f, f]), t.frecuencia, '— elegir —')}</select></td>
+          <td><select class="mes">${opcionesSelect(MESES_LARGOS.map((m, j) => [j + 1, m]), t.mes_inicio, '—')}</select></td>
+          <td><input class="horas" type="number" min="1" step="1" value="${t.cada_horas ?? ''}" style="width:6.5rem"></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="error"></p>
+      <div class="botones"><button class="primario" type="submit">Programar</button><button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`, true);
+  const f = $('#f-programar');
+  const filas = [...f.querySelectorAll('tbody tr')];
+  const ver = tr => {
+    const fr = $('.frecuencia', tr).value;
+    $('.mes', tr).classList.toggle('oculto', !fr || fr === 'Por horas' || fr === 'Según condición');
+    $('.horas', tr).classList.toggle('oculto', fr !== 'Por horas');
+  };
+  const contar = () => {
+    const n = filas.filter(tr => $('.usar', tr).checked).length;
+    $('button[type=submit]', f).textContent = `Programar ${n}`;
+    Object.assign($('.todas', f), { checked: n === filas.length, indeterminate: n > 0 && n < filas.length });
+  };
+  filas.forEach(tr => {
+    ver(tr);
+    $('.frecuencia', tr).addEventListener('change', () => {
+      const fr = $('.frecuencia', tr).value;
+      if (fr && fr !== 'Por horas' && fr !== 'Según condición' && !$('.mes', tr).value) $('.mes', tr).value = '1';
+      if (fr) $('.usar', tr).checked = true;
+      ver(tr); contar();
+    });
+    $('.usar', tr).addEventListener('change', contar);
+  });
+  $('.todas', f).addEventListener('change', ev => { filas.forEach(tr => { $('.usar', tr).checked = ev.target.checked; }); contar(); });
+  contar();
+  f.addEventListener('submit', ev => {
+    ev.preventDefault();
+    enviar(f, async d => {
+      const elegidas = filas.filter(tr => $('.usar', tr).checked);
+      if (!elegidas.length) throw new Error('No hay ninguna marcada.');
+      const tareas = elegidas.map(tr => {
+        const t = lista[tr.dataset.i], frecuencia = $('.frecuencia', tr).value;
+        if (!frecuencia) throw new Error(`${t.equipo_codigo} ${t.seccion}: falta elegir la frecuencia (o desmarcarla).`);
+        return { equipo_id: t.equipo_id, seccion_id: t.seccion_id, frecuencia, responsable_id: d.responsable_id,
+                 mes_inicio: $('.mes', tr).value, cada_horas: $('.horas', tr).value };
+      });
+      const r = await api('/api/tareas/lote', { metodo: 'POST', datos: { tareas } });
+      await recargarOpciones(); cerrarModal();
+      avisar(`Se programaron ${r.length} tareas.`); irA('plan');
+    });
+  });
 }
 
 async function buscarActualizacion(boton) {

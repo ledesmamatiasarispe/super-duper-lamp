@@ -327,6 +327,16 @@ def crear_tarea(body: dict = Body(...), u: dict = Admin):
     return sv.crear_tarea(u, **{k: body.get(k) for k in _TAREA})
 
 
+@app.get("/api/tareas/sin-programar")
+def tareas_sin_programar(u: dict = Admin):
+    return sv.tareas_sin_programar()
+
+
+@app.post("/api/tareas/lote")
+def programar_tareas(body: dict = Body(...), u: dict = Admin):
+    return sv.programar_tareas(u, [{k: t.get(k) for k in _TAREA} for t in body.get("tareas") or [] if isinstance(t, dict)])
+
+
 @app.put("/api/tareas/{tarea_id}")
 def actualizar_tarea(tarea_id: int, body: dict = Body(...), u: dict = Admin):
     return sv.actualizar_tarea(u, tarea_id, **{k: body.get(k) for k in _TAREA})
