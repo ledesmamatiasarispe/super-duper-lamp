@@ -1,3 +1,4 @@
 pytest
 httpx
 pyinstaller
+xlrd

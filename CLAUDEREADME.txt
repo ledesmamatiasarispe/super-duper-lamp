@@ -51,6 +51,9 @@ La idea en una línea:
     compilar.py               PyInstaller onedir -> dist/UltraMantenimiento/ + .zip + .sha256
     icono.py                  genera ultramantenimiento.ico (sin librerías de imágenes)
     instructivo_ejemplo.py    crea el instructivo "EJEMPLO · Bomba centrífuga" (usa todas las herramientas del editor)
+    cargar_fichas.py          carga las fichas originales .xls (equipos EQ-001…028 + instructivos IT01…IT26); necesita
+                              xlrd (requirements-dev). Tiene --simular. Equipos/áreas/responsables salen de una tabla
+                              armada con CronogramaMantenimiento-2027.xlsm (los encabezados de varias fichas están mal).
   tests/            pytest con TestClient contra una base nueva por test (fixture `api` en test_api.py, admin logueado).
                     conftest.py pone MANT_REPO="" para que los tests no salgan a internet.
   .github/workflows/release.yml   al empujar un tag v*: tests + compilar + publicar el release.
@@ -142,6 +145,10 @@ La idea en una línea:
 ---------------------------------------
 - separar_instructivos_compartidos ya corrió sobre la base real: IT01 estaba compartido por EQ-001 y EQ-003; EQ-003
   quedó con su copia IT03. La función sigue corriendo al arrancar (es idempotente) por si aparece otra base vieja.
-- El instructivo de ejemplo (IT04, "EJEMPLO · Bomba centrífuga") está cargado en la base real, revisión 1.
+- El instructivo de ejemplo ("EJEMPLO · Bomba centrífuga") está cargado en la base real, revisión 1, con código EJ01.
+- 2026-11-06: se borraron los datos de prueba (EQ-001..003, IT01..03, 7 tareas) y se cargaron las 26 fichas originales
+  con herramientas/cargar_fichas.py: 28 equipos (códigos = cronograma 2027), IT01..IT26 + IT27 (copia de IT06 para
+  la Noyera N° 2). La ficha 25 (Amoladoras) no se cargó: no es un preventivo. El Plan quedó VACÍO: falta programarlo.
+  Copia previa: data/mantenimiento_antes_de_fichas.db y data/adjuntos_antes_de_fichas/.
 - Copias de seguridad tomadas antes de cada migración, en data/: mantenimiento_antes_de_orden.db,
   mantenimiento_antes_de_separar_instructivos.db, mantenimiento_antes_de_ejemplo.db.
