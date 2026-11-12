@@ -199,6 +199,8 @@
       { el: () => boton('Registrar mantenimiento'), titulo: 'Registrar mantenimiento', texto: 'Para anotar un <b>preventivo</b> que se hizo: elegís la tarea, ves sus actividades del instructivo, y cargás fecha, resultado, quién lo hizo y las novedades. '
         + 'Es el mismo formulario que se abre desde el Cronograma y desde Registros.' },
       { el: () => boton('Registrar correctivo'), titulo: 'Registrar correctivo', texto: 'Para una <b>falla o rotura</b> que no estaba programada: qué falló, la causa, qué se hizo y cuántas horas estuvo parado el equipo. Se ve después en la pestaña Correctivos.' },
+      { el: () => boton('Imprimir lista del mes'), titulo: 'Imprimir lista del mes', texto: 'Imprime en una hoja apaisada lo atrasado, lo de este mes y los servicios por horas vencidos o próximos, '
+        + 'con casilleros en blanco (hecho, fecha, quién, observaciones) para llevar al taller. Lo que se hizo se registra después acá.' },
       { el: () => tarjeta('Cumplimiento'), titulo: 'Cumplimiento del año', texto: 'De todos los servicios que tocaban en los <b>meses ya cerrados</b>, cuántos se hicieron. El mes en curso todavía no cuenta: hay tiempo hasta fin de mes. '
         + 'Cuentan como hechos los registrados como <b>Realizado</b> o <b>Con observaciones</b>.' },
       { el: () => tarjeta('Este mes'), titulo: 'Este mes', texto: 'Las tareas que tocan este mes y todavía no se registraron. Cuando una se registra, desaparece de la lista. '

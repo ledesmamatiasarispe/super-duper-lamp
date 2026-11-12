@@ -1254,7 +1254,7 @@ def estado_horometros() -> list[dict]:
                                   (t["id"],)).fetchone()[0]
                 est = cal.estado_por_horas(t["cada_horas"], t["proximo_inicial"], ultima["horas"] if ultima else None, hecho, aviso)
                 servicios.append({"tarea_id": t["id"], "codigo": t["codigo"], "seccion": t["seccion"],
-                                  "cada_horas": t["cada_horas"], **est.__dict__})
+                                  "responsable": t["responsable"], "cada_horas": t["cada_horas"], **est.__dict__})
             salida.append({"equipo_id": e["id"], "codigo": e["codigo"], "nombre": e["nombre"],
                            "ultima_lectura": ultima["horas"] if ultima else None,
                            "fecha_lectura": ultima["fecha"] if ultima else None, "servicios": servicios})

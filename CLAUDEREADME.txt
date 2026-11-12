@@ -145,7 +145,8 @@ La idea en una línea:
 - Releases publicados: v1.0.0 (logo herradura), v1.0.1 (logo omega ℧), v1.0.2 (botón "Programar todos" en Opciones,
   mensaje del límite de GitHub + reintento a los 10 minutos), v1.0.3 ("Repartir meses" dentro de Programar todos;
   la página pide app.js/styles.css con ?v=VERSION y se sirve sin caché, así después de actualizar no hace falta Ctrl+F5),
-  v1.0.4 (Inicio con las tablas a todo el ancho, una debajo de la otra: en columnas se cortaban los nombres).
+  v1.0.4 (Inicio con las tablas a todo el ancho, una debajo de la otra: en columnas se cortaban los nombres),
+  v1.0.5 (botón "Imprimir lista del mes" en Inicio: hoja apaisada con casilleros para completar a mano).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS

@@ -151,6 +151,21 @@ td b, .crono td:first-child, .crono td a { white-space: nowrap; }
   @page { size: A4; margin: 14mm; }
 }
 
+/* lista del mes para imprimir (Inicio): oculta en pantalla, apaisada en papel y con casilleros para completar a mano */
+.hoja-lista { display: none; }
+@page lista { size: A4 landscape; margin: 10mm; }
+@media print {
+  body.imprimiendo-lista #vista > :not(.hoja-lista) { display: none !important; }
+  body.imprimiendo-lista .hoja-lista { display: block; page: lista; }
+  .hoja-lista h2 { margin: 0 0 .2rem; }
+  .hoja-lista table { font-size: 9.5pt; }
+  .hoja-lista th, .hoja-lista td { border: 1px solid #8a96a3; padding: .35rem .4rem; }
+  .hoja-lista tr { break-inside: avoid; }
+  .hoja-lista thead { display: table-header-group; }
+  .hoja-lista td.casilla { text-align: center; font-size: 13pt; }
+  .hoja-lista th.fecha { width: 9%; } .hoja-lista th.realizo { width: 12%; } .hoja-lista th.obs { width: 26%; }
+}
+
 /* instructivo: detalle de actividades y bloques de contenido */
 .actividades .detalle { list-style: disc; margin: .15rem 0 .3rem; padding-left: 1.3rem; color: #3d4955; font-size: .93em; }
 .doc figure { margin: .8rem 0; break-inside: avoid; }
