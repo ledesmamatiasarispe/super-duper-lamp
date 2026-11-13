@@ -235,3 +235,39 @@ def test_la_pagina_pide_los_archivos_con_la_version(api):
     r = api.get("/")
     assert r.headers["cache-control"] == "no-cache"
     assert f'/static/app.js?v={VERSION}"' in r.text and f'/static/styles.css?v={VERSION}"' in r.text
+
+
+def test_lo_registrado_antes_del_alta_no_cuenta_en_el_cumplimiento(api):
+    """Se cargó el historial de un año en que la tarea todavía no estaba en el Plan: se ve, pero no infla el porcentaje."""
+    from app import servicios as sv
+    t = tarea(api, "EQ-002-1")
+    with db.transaccion() as c:
+        c.execute("UPDATE tareas SET frecuencia='Mensual', mes_inicio=1, meses_especificos='', creado_en='2030-06-01' WHERE id=?", (t["id"],))
+        c.execute("INSERT INTO registros (tarea_id, fecha, resultado) VALUES (?, '2030-03-15', 'Realizado')", (t["id"],))
+    cr = sv.cronograma(2030, date(2030, 12, 20))
+    fila = next(f for f in cr["filas"] if f["codigo"] == "EQ-002-1")
+    assert [c["estado"] for c in fila["celdas"][:6]] == ["antes_alta", "antes_alta", "hecho", "antes_alta", "antes_alta", "vencido"]
+    otras = sum(1 for f in cr["filas"] if f["codigo"] != "EQ-002-1" for c in f["celdas"] if c["estado"] == "vencido")
+    assert cr["cumplimiento"]["esperadas"] == 6 + otras and cr["cumplimiento"]["cumplidas"] == 0
+
+
+def test_cambio_de_horometro(api):
+    """El horómetro nuevo arranca de otro número: los servicios conservan lo que les faltaba y las lecturas no chocan."""
+    comp = next(e for e in api.get("/api/horometros").json() if e["codigo"] == "EQ-001")
+    url = f"/api/equipos/{comp['equipo_id']}"
+    assert api.post(f"{url}/lecturas", json={"fecha": "2026-02-02", "horas": 50900}).status_code == 200
+    faltaban = {s["codigo"]: s["faltan"] for s in next(e for e in api.get("/api/horometros").json() if e["codigo"] == "EQ-001")["servicios"]}
+    assert "después de la última" in error(api.post(f"{url}/cambio-horometro", json={"fecha": "2026-01-10", "horas": 58}))
+    r = api.post(f"{url}/cambio-horometro", json={"fecha": "2026-04-07", "horas": 58, "observaciones": "se rompió"})
+    assert r.status_code == 200, r.text
+    ahora = next(e for e in api.get("/api/horometros").json() if e["codigo"] == "EQ-001")
+    assert ahora["ultima_lectura"] == 58
+    assert {s["codigo"]: s["faltan"] for s in ahora["servicios"]} == faltaban
+    # el nuevo tiene sus propias lecturas; el viejo sigue sin poder retroceder en su tramo
+    assert api.post(f"{url}/lecturas", json={"fecha": "2026-07-06", "horas": 923}).status_code == 200
+    assert "no puede bajar" in error(api.post(f"{url}/lecturas", json={"fecha": "2026-03-01", "horas": 49000}))
+    assert "no puede bajar" in error(api.post(f"{url}/lecturas", json={"fecha": "2026-08-01", "horas": 500}))
+    assert api.post(f"{url}/lecturas", json={"fecha": "2026-03-01", "horas": 51000}).status_code == 200
+    assert next(e for e in api.get("/api/horometros").json() if e["codigo"] == "EQ-001")["ultima_lectura"] == 923
+    lecturas = api.get(f"/api/lecturas?equipo_id={comp['equipo_id']}").json()
+    assert [l["cambio"] for l in lecturas if l["fecha"] == "2026-04-07"] == [1]

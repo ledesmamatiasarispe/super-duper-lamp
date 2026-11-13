@@ -146,7 +146,9 @@ La idea en una línea:
   mensaje del límite de GitHub + reintento a los 10 minutos), v1.0.3 ("Repartir meses" dentro de Programar todos;
   la página pide app.js/styles.css con ?v=VERSION y se sirve sin caché, así después de actualizar no hace falta Ctrl+F5),
   v1.0.4 (Inicio con las tablas a todo el ancho, una debajo de la otra: en columnas se cortaban los nombres),
-  v1.0.5 (botón "Imprimir lista del mes" en Inicio: hoja apaisada con casilleros para completar a mano).
+  v1.0.5 (botón "Imprimir lista del mes" en Inicio: hoja apaisada con casilleros para completar a mano),
+  v1.0.6 (cambio de horómetro en Horómetros: tramos de lecturas y próximos corridos al horómetro nuevo; el
+  cumplimiento del año no cuenta los meses anteriores al alta de la tarea).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -163,5 +165,11 @@ La idea en una línea:
   El script tiene los datos adentro, por eso NO está en el repo: quedó en data/cargar_correctivos.py. Las fallas se
   redactaron a mano (la planilla solo las traía en el Horno). Una persona por correctivo; las demás en observaciones.
   Copia previa: data/mantenimiento_antes_de_correctivos.db.
+- 2026-11-12: se cargó el CronogramaMantenimiento-2026.xlsx (data/cargar_cronograma_2026.py, fuera del repo): 76 registros
+  Realizado (cada "v" de la hoja PROGRAMA; día 15, o 10/25 en las quincenales; quién = Mantenimiento interno "Sin dato
+  (cronograma 2026)") y el próximo servicio de B/C/D de los compresores. No entraron: los A de los compresores (sin
+  lectura de horómetro), Durómetro (sin instructivo), los B de las noyeras (sin programar), la C del elevador de arena.
+  Como las tareas son del 2026-11, esos registros caen antes del alta: se ven en la grilla y no cuentan en el
+  cumplimiento (ver cronograma()). Copia previa: data/mantenimiento_antes_de_cronograma_2026.db.
 - Copias de seguridad tomadas antes de cada migración, en data/: mantenimiento_antes_de_orden.db,
   mantenimiento_antes_de_separar_instructivos.db, mantenimiento_antes_de_ejemplo.db.

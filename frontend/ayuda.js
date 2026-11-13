@@ -248,6 +248,9 @@
       { titulo: 'Horómetros', texto: 'Como el cronograma, pero para los servicios que van por <b>horas de uso</b>: un cuadro por cada equipo con horómetro. '
         + 'Las lecturas no se cargan acá: se cargan en <b>Registros</b>, al registrar un servicio o con "Registrar lectura de horómetro".' },
       { el: () => enVista('.encabezado .botones'), titulo: 'Moverse por las horas', texto: 'Cada columna es un bloque de horas. <b>◄ horas antes</b> y <b>horas después ►</b> corren la grilla; <b>Ahora</b> la vuelve a centrar en la última lectura.' },
+      { el: () => boton('Cambio de horómetro'), titulo: 'Cambio de horómetro', texto: 'Si el horómetro se rompe o se reemplaza, el nuevo arranca de otro número. '
+        + 'Se anota acá (fecha, lo que marca el nuevo y, si se sabe, lo que marcaba el viejo): desde esa fecha las lecturas son del nuevo, '
+        + 'y a cada servicio por horas le queda lo mismo que le faltaba. Solo administradores.' },
       { el: () => enVista('.tarjeta h3 + p'), titulo: 'Última lectura', texto: 'Lo último que se anotó del horómetro de ese equipo y en qué fecha. Todo lo de abajo se calcula desde este número.' },
       { el: () => enVista('.tarjeta table.crono tbody tr'), titulo: 'Cada servicio por horas', texto: 'Código y sección del instructivo, cada cuántas horas se hace y a cuántas horas toca el <b>próximo</b>, con cuánto falta (o por cuánto se pasó). '
         + '<b>Sin lectura</b>: nunca se anotó el horómetro. <b>Falta dato</b>: en el Plan falta a qué horas va el primer servicio.' },

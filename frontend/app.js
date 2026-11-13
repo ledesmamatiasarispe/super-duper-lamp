@@ -587,7 +587,8 @@ VISTAS.horometros = async () => {
     <div class="encabezado"><h2>Horómetros</h2>
       <div class="botones"><button onclick="S.corrimiento -= 6; irA('horometros')">◄ horas antes</button>
         <button onclick="S.corrimiento = 0; irA('horometros')">Ahora</button>
-        <button onclick="S.corrimiento += 6; irA('horometros')">horas después ►</button></div></div>
+        <button onclick="S.corrimiento += 6; irA('horometros')">horas después ►</button>
+        ${soloAdmin('<button onclick="modalCambioHorometro()">Cambio de horómetro</button>')}</div></div>
     <p class="sutil">Como el cronograma, pero para los servicios por uso: cada columna es un bloque de horas del horómetro (▲ = la última lectura).
       Las lecturas se cargan en Registros: al registrar un servicio o con "Registrar lectura de horómetro".</p>
     ${equipos.map(tarjeta).join('') || '<p class="sutil">Ningún equipo tiene horómetro.</p>'}
@@ -595,7 +596,8 @@ VISTAS.horometros = async () => {
       <span><b class="c-pendiente">○</b> programado</span><span><b class="c-vencido">✗</b> vencido o hecho tarde</span>
       <span>Pasar el mouse por una celda para ver el detalle; clic para registrar.</span></div>
     <div class="tarjeta tabla-wrap"><h3>Últimas lecturas</h3><table><thead><tr><th>Fecha</th><th>Equipo</th><th>Horómetro</th><th>Anotó</th><th>Observaciones</th></tr></thead><tbody>
-      ${lecturas.map(l => `<tr><td>${fecha(l.fecha)}</td><td>${esc(l.equipo_codigo)} · ${esc(l.equipo)}</td><td>${miles(l.horas)} h</td>
+      ${lecturas.map(l => `<tr><td>${fecha(l.fecha)}</td><td>${esc(l.equipo_codigo)} · ${esc(l.equipo)}</td>
+        <td>${miles(l.horas)} h${l.cambio ? ` <span class="chip ambar" title="${l.horas_anterior == null ? '' : 'El anterior marcaba ' + miles(l.horas_anterior) + ' h'}">horómetro nuevo</span>` : ''}</td>
         <td>${esc(l.anoto || '')}</td><td>${esc(l.observaciones)}</td></tr>`).join('') || '<tr><td colspan="5" class="vacio">Sin lecturas.</td></tr>'}</tbody></table></div>`;
 };
 
@@ -619,6 +621,37 @@ function modalLectura() {
       if (!d.equipo_id) throw new Error('Elegir el equipo.');
       await api(`/api/equipos/${d.equipo_id}/lecturas`, { metodo: 'POST', datos: d });
       cerrarModal(); avisar('Lectura guardada.'); irA(location.hash.slice(1) || 'registros');
+    });
+  });
+}
+
+/** El horómetro se rompió o se cambió: el nuevo arranca de otro número y los servicios por horas se corren a esa escala. */
+function modalCambioHorometro() {
+  const equipos = S.opciones.equipos.filter(e => e.usa_horometro);
+  abrirModal(`
+    <h2>Cambio de horómetro</h2>
+    <p class="sutil">Desde esta fecha las lecturas son del horómetro nuevo. A cada servicio por horas le queda lo mismo que le faltaba
+      con el viejo: si al B le faltaban 300 h, queda a 300 h de lo que marca el nuevo.</p>
+    <form id="f-cambio"><div class="campos">
+      <label class="ancho">Equipo <select name="equipo_id">${opcionesSelect(equipos.map(e => [e.id, `${e.codigo} · ${e.nombre}`]), equipos.length === 1 ? equipos[0].id : '', '— elegir —')}</select></label>
+      <label>Fecha del cambio <input type="date" name="fecha" value="${hoyISO()}" max="${hoyISO()}"></label>
+      <label>Marca el nuevo (h) <input name="horas" type="number" min="0" step="1" required></label>
+      <label>Marcaba el viejo al sacarlo (h) <input name="horas_anterior" type="number" min="0" step="1" placeholder="si se sabe"></label>
+      <label>Anotó <select name="anoto_id">${personasSelect('', '—', 'general')}</select></label>
+      <label class="ancho">Observaciones <input name="observaciones" placeholder="por qué se cambió"></label>
+    </div><p class="sutil">Si no se sabe cuánto marcaba el viejo al sacarlo, se usa su última lectura: las horas trabajadas desde entonces
+      no se cuentan, y conviene revisar el próximo de cada servicio en el Plan.</p><p class="error"></p>
+    <div class="botones"><button class="primario" type="submit">Guardar</button><button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`);
+  const f = $('#f-cambio');
+  f.addEventListener('submit', ev => {
+    ev.preventDefault();
+    enviar(f, async d => {
+      if (!d.equipo_id) throw new Error('Elegir el equipo.');
+      const r = await api(`/api/equipos/${d.equipo_id}/cambio-horometro`, { metodo: 'POST', datos: d });
+      cerrarModal();
+      const sin = r.servicios.filter(s => s.ahora == null).map(s => s.codigo);
+      avisar(sin.length ? `Cambio guardado. Sin próximo (cargarlo en el Plan): ${sin.join(', ')}.` : 'Cambio de horómetro guardado.');
+      recargarOpciones(); irA('horometros');
     });
   });
 }

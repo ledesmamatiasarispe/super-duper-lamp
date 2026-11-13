@@ -406,6 +406,11 @@ def registrar_lectura(equipo_id: int, body: dict = Body(...), u: dict = Usuario)
     return sv.registrar_lectura(u, equipo_id, **{k: body.get(k) for k in ("fecha", "horas", "anoto_id", "observaciones")})
 
 
+@app.post("/api/equipos/{equipo_id}/cambio-horometro")
+def cambiar_horometro(equipo_id: int, body: dict = Body(...), u: dict = Admin):
+    return sv.cambiar_horometro(u, equipo_id, **{k: body.get(k) for k in ("fecha", "horas", "horas_anterior", "anoto_id", "observaciones")})
+
+
 # ── correctivos ──
 @app.get("/api/correctivos")
 def correctivos(anio: Optional[int] = None, equipo_id: Optional[int] = None, u: dict = Usuario):

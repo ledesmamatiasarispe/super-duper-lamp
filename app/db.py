@@ -161,6 +161,8 @@ CREATE TABLE IF NOT EXISTS lecturas_horometro (
     anoto_id     INTEGER REFERENCES personas(id),
     observaciones TEXT   NOT NULL DEFAULT '',
     registro_id  INTEGER REFERENCES registros(id),   -- si vino de un registro de mantenimiento
+    cambio       INTEGER NOT NULL DEFAULT 0,  -- 1 = primera lectura de un horómetro nuevo (el anterior se rompió o se reemplazó)
+    horas_anterior INTEGER,                   -- en un cambio: lo último que marcó el horómetro reemplazado, si se sabe
     creado_por TEXT, creado_en TEXT
 );
 CREATE TABLE IF NOT EXISTS correctivos (
@@ -254,7 +256,9 @@ def _agregar_columnas(c: sqlite3.Connection) -> None:
                                  ("personas", "categoria", "TEXT NOT NULL DEFAULT 'interno'"),
                                  ("personas", "contacto", "TEXT NOT NULL DEFAULT ''"),
                                  ("registros", "realizado_por_nombre", "TEXT NOT NULL DEFAULT ''"),
-                                 ("correctivos", "realizado_por_nombre", "TEXT NOT NULL DEFAULT ''")):
+                                 ("correctivos", "realizado_por_nombre", "TEXT NOT NULL DEFAULT ''"),
+                                 ("lecturas_horometro", "cambio", "INTEGER NOT NULL DEFAULT 0"),
+                                 ("lecturas_horometro", "horas_anterior", "INTEGER")):
         if columna not in {r[1] for r in c.execute(f"PRAGMA table_info({tabla})")}:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
             if (tabla, columna) == ("personas", "pide_nombre"):   # las dos genéricas de los ejemplos
