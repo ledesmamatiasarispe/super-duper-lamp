@@ -72,6 +72,11 @@ La idea en una línea:
 
 3. REGLAS DE NEGOCIO (no romperlas)
 -----------------------------------
+- CUMPLIDO FUERA DE TÉRMINO (decidido con el usuario, 2026-11-13; calendario.cumplir_fuera_de_termino): un mes que
+  tocaba y quedó vencido/reprogramado/no realizado lo cubre un trabajo de un mes POSTERIOR, si se hizo antes de la
+  próxima vez que la tarea vuelve a tocar (si no, cubre esa vez nueva y el atrasado queda vencido). El mes atrasado
+  pasa a 'tarde' y el del trabajo a 'cubre' (ya no es 'extra'). En el cumplimiento cuenta como cumplido (opción A) y
+  se informa aparte a_tiempo / porcentaje_a_tiempo. Lo cubierto ya no figura en Atrasados de Inicio.
 - DAR DE BAJA ≠ ELIMINAR. Baja/obsoleto oculta y conserva todo el historial; las tablas lo esconden y tienen un
   checkbox "Ver ocultos" (filas tr.baja). ELIMINAR es solo para lo cargado por error y solo si no tiene nada
   vinculado (equipo sin tareas/lecturas/correctivos, área sin equipos, instructivo nunca usado en el Plan).
@@ -163,7 +168,9 @@ La idea en una línea:
   v1.0.7 (Mapa de planta: planos dibujados con las máquinas como puntos coloreados por su estado; nombre y logo de la
   app en Opciones; la contraseña provisoria ya no bloquea: banner amarillo hasta cambiarla en Opciones),
   v1.1.0 (sobre el núcleo de appbase: Mantenimiento pasa a ser un módulo; usuarios migrados sin perder nada, se
-  entra con el legajo; puerto en Opciones, instancia única, actualizador con copia de la base y vuelta atrás).
+  entra con el legajo; puerto en Opciones, instancia única, actualizador con copia de la base y vuelta atrás),
+  v1.1.1 (cumplido fuera de término: lo hecho en un mes posterior, antes de que vuelva a tocar, cubre el mes atrasado;
+  cuenta como cumplido y se informa aparte el porcentaje a tiempo).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS

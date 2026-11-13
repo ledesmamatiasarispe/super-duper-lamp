@@ -22,7 +22,7 @@
       { el: () => boton('Registrar correctivo'), titulo: 'Registrar correctivo', texto: 'Para una <b>falla o rotura</b> que no estaba programada: qué falló, la causa, qué se hizo y cuántas horas estuvo parado el equipo. Se ve después en la pestaña Correctivos.' },
       { el: () => boton('Imprimir lista del mes'), titulo: 'Imprimir lista del mes', texto: 'Imprime en una hoja apaisada lo atrasado, lo de este mes y los servicios por horas vencidos o próximos, '
         + 'con casilleros en blanco (hecho, fecha, quién, observaciones) para llevar al taller. Lo que se hizo se registra después acá.' },
-      { el: () => tarjeta('Cumplimiento'), titulo: 'Cumplimiento del año', texto: 'De todos los servicios que tocaban en los <b>meses ya cerrados</b>, cuántos se hicieron. El mes en curso todavía no cuenta: hay tiempo hasta fin de mes. '
+      { el: () => tarjeta('Cumplimiento'), titulo: 'Cumplimiento del año', texto: 'De todos los servicios que tocaban en los <b>meses ya cerrados</b>, cuántos se hicieron. Lo hecho <b>fuera de término</b> (en un mes posterior, antes de que volviera a tocar) cuenta como hecho, y abajo se ve cuántos fueron <b>a tiempo</b>. El mes en curso todavía no cuenta: hay tiempo hasta fin de mes. '
         + 'Cuentan como hechos los registrados como <b>Realizado</b> o <b>Con observaciones</b>.' },
       { el: () => tarjeta('Este mes'), titulo: 'Este mes', texto: 'Las tareas que tocan este mes y todavía no se registraron. Cuando una se registra, desaparece de la lista. '
         + 'Si dice <b>"faltan 2"</b> es una tarea que se hace más de una vez por mes (por ejemplo, quincenal).' },
@@ -38,7 +38,7 @@
       { titulo: 'Cronograma anual', texto: 'La planilla del año: una fila por cada tarea del <b>Plan</b> (una sección del instructivo aplicada a un equipo) y una columna por mes. '
         + 'Se completa sola a medida que se registran los mantenimientos.' },
       { el: () => conTexto('.encabezado button', '◄', vista()), titulo: 'Cambiar de año', texto: 'Con <b>◄</b> y <b>►</b> pasás al año anterior o al siguiente. El año elegido se usa también en Registros, Correctivos, Personal y Áreas.' },
-      { el: () => enVista('.encabezado .chip'), titulo: 'Cumplimiento', texto: 'Servicios hechos sobre los que tocaban en los meses ya cerrados. Verde desde 90 %, ámbar desde 70 %, rojo por debajo.' },
+      { el: () => enVista('.encabezado .chip'), titulo: 'Cumplimiento', texto: 'Servicios hechos (a tiempo o fuera de término) sobre los que tocaban en los meses ya cerrados, y al lado cuántos fueron a tiempo. Verde desde 90 %, ámbar desde 70 %, rojo por debajo.' },
       { el: () => boton('Imprimir'), titulo: 'Imprimir', texto: 'Imprime la planilla (o la guarda como PDF), sin el menú ni los botones.' },
       { el: () => { const f = enVista('.crono tbody tr'); return f ? [...f.children].slice(0, 5) : null; }, titulo: 'Cada fila es una tarea', texto: 'El código de la tarea, el equipo, la sección del instructivo (tocala para abrirlo), la frecuencia y el responsable. '
         + 'Los servicios <b>por horas</b> dicen "c/ 1000 h": esos se siguen en <b>Horómetros</b>, no por mes.' },
@@ -47,7 +47,7 @@
           const i = [...vista().querySelectorAll('.crono thead th')].findIndex(t => t.classList.contains('actual'));
           const llenos = todos('.crono tbody td.mes', vista()).filter(td => td.textContent.trim());
           return llenos.find(td => [...td.parentNode.children].indexOf(td) === i) || llenos[0] || enVista('.crono tbody td.mes');
-        }, titulo: 'Tocá un mes para registrar', texto: `Cada casillero muestra cómo está ese mes: ${sim('pendiente', '○')} programado, ${sim('hecho', '✓')} hecho, ${sim('vencido', '✗')} vencido, ${sim('reprogramado', '↻')} reprogramado. Si va más de una vez por mes muestra "1/2". `
+        }, titulo: 'Tocá un mes para registrar', texto: `Cada casillero muestra cómo está ese mes: ${sim('pendiente', '○')} programado, ${sim('hecho', '✓')} hecho, ${sim('tarde', '✓')} hecho fuera de término (en un mes posterior, que muestra ${sim('cubre', '↩')}), ${sim('vencido', '✗')} vencido, ${sim('reprogramado', '↻')} reprogramado. Si va más de una vez por mes muestra "1/2". `
         + 'Al tocarlo se abre el registro de esa tarea con la fecha ya sugerida: hoy si es el mes en curso, o el día 1 de ese mes. En la computadora, dejando el mouse encima se ve el detalle.' },
       { el: () => enVista('.leyenda'), titulo: 'Qué significa cada símbolo', texto: 'Un casillero <b>vacío</b> es que ese mes no toca. <b>–</b> es que se registró <b>No aplica</b>, y <b>·</b> que la tarea todavía no estaba cargada en el Plan: '
         + 'ninguno de los dos cuenta como atraso. Reprogramado y no realizado sí cuentan en contra del cumplimiento.' },
@@ -270,7 +270,7 @@
 
     // 4. cronograma
     { ir: 'cronograma', el: () => menu('cronograma'), titulo: '4 · Cronograma', texto: 'Sale <b>solo</b> del Plan: una fila por tarea, una columna por mes. Nadie lo completa a mano: cada casillero cambia cuando se registra el trabajo.' },
-    { ir: 'cronograma', el: () => enVista('.leyenda'), titulo: 'El estado de cada mes', texto: `${sim('pendiente', '○')} toca y no se hizo todavía, ${sim('hecho', '✓')} hecho, ${sim('vencido', '✗')} vencido o no realizado, ${sim('reprogramado', '↻')} reprogramado. `
+    { ir: 'cronograma', el: () => enVista('.leyenda'), titulo: 'El estado de cada mes', texto: `${sim('pendiente', '○')} toca y no se hizo todavía, ${sim('hecho', '✓')} hecho, ${sim('tarde', '✓')} hecho fuera de término (se hizo en un mes posterior, antes de que volviera a tocar), ${sim('vencido', '✗')} vencido o no realizado, ${sim('reprogramado', '↻')} reprogramado. `
       + 'Tocando un casillero se registra ese trabajo directamente.' },
     { ir: 'cronograma', el: () => enVista('.encabezado .chip'), titulo: 'Cumplimiento', texto: 'Hechos sobre los que tocaban, contando solo los <b>meses ya cerrados</b> (el mes en curso todavía tiene tiempo). '
       + 'Cuentan como hechos <b>Realizado</b> y <b>Con observaciones</b>; <b>No realizado</b> y <b>Reprogramado</b> cuentan en contra; <b>No aplica</b> no cuenta.' },

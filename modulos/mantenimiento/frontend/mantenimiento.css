@@ -22,6 +22,9 @@
 .crono tr.nuevo-equipo td { border-top: 2px solid #b8c4cf; }
 .c-hecho { background: var(--verde-claro); color: var(--verde); }
 .c-extra { color: var(--verde); }
+/* cumplido fuera de término: el mes que tocaba, cubierto por un trabajo de un mes posterior (ese mes muestra ↩) */
+.c-tarde { background: var(--ambar-claro); color: var(--verde); }
+.c-cubre { color: var(--sutil); }
 .c-vencido { background: var(--rojo-claro); color: var(--rojo); }
 .c-pendiente { color: var(--azul); }
 .c-reprogramado { background: var(--ambar-claro); color: var(--ambar); }

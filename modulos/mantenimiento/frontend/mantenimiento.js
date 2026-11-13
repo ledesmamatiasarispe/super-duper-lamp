@@ -230,7 +230,8 @@ VISTAS.inicio = async () => {
     ${hojaListaDelMes(p, hoy)}
     <div class="tarjeta inicio-cumplimiento"><h3>Cumplimiento ${hoy.getFullYear()}</h3>
       <span class="numero-grande">${c.porcentaje == null ? '—' : c.porcentaje + ' %'}</span>
-      <span class="sutil">${c.cumplidas} de ${c.esperadas} servicios de los meses cerrados.</span></div>
+      <span class="sutil">${c.esperadas ? `${c.cumplidas} de ${c.esperadas} servicios de los meses cerrados: ${c.a_tiempo} a tiempo (${c.porcentaje_a_tiempo} %) y ${c.cumplidas - c.a_tiempo} fuera de término.`
+        : 'Todavía no cerró ningún mes desde que las tareas están en el Plan.'}</span></div>
     <div class="tarjeta"><h3>Este mes <span class="chip azul">${p.este_mes.length}</span></h3>
       ${tabla([...MANT, 'Pendiente', 'Responsable', ''], p.este_mes.map(t => fila(t, t.faltan > 1 ? `faltan ${t.faltan}` : '')), 'Nada pendiente.')}</div>
     <div class="tarjeta"><h3>Atrasados <span class="chip ${p.atrasados.length ? 'rojo' : 'verde'}">${p.atrasados.length}</span></h3>
@@ -272,7 +273,9 @@ function imprimirListaDelMes() {
 }
 
 // ── CRONOGRAMA ──
-const SIMBOLO = { hecho: '✓', extra: '✓', vencido: '✗', pendiente: '○', reprogramado: '↻', no_realizado: '✗', no_aplica: '–', antes_alta: '·', vacio: '' };
+const SIMBOLO = { hecho: '✓', tarde: '✓', extra: '✓', cubre: '↩', vencido: '✗', pendiente: '○', reprogramado: '↻', no_realizado: '✗',
+  no_aplica: '–', antes_alta: '·', vacio: '' };
+const NOMBRE_ESTADO = { tarde: 'cumplido fuera de término', cubre: 'hecho acá, cubre un mes atrasado', antes_alta: 'antes de cargar la tarea' };
 VISTAS.cronograma = async () => {
   const c = await api('/api/cronograma?anio=' + S.anio);
   const hoy = new Date(c.hoy + 'T00:00');
@@ -282,7 +285,7 @@ VISTAS.cronograma = async () => {
     const nuevo = f.equipo_codigo !== anterior; anterior = f.equipo_codigo;
     const celdas = f.celdas.map((x, i) => {
       const txt = x.esperado > 1 ? `${x.hechos}/${x.esperado}` : SIMBOLO[x.estado];
-      const tip = `${MESES_LARGOS[i]}: ${x.estado.replace('_', ' ')}${x.detalle ? ' (' + x.detalle + ')' : ''}`;
+      const tip = `${MESES_LARGOS[i]}: ${NOMBRE_ESTADO[x.estado] || x.estado.replace('_', ' ')}${x.detalle ? ' (' + x.detalle + ')' : ''}`;
       return `<td class="mes c-${x.estado}" title="${esc(tip)}" onclick="clicCelda(${f.tarea_id}, ${i + 1})">${txt}</td>`;
     }).join('');
     const freq = f.frecuencia === 'Por horas' ? `c/ ${miles(f.cada_horas)} h` : f.frecuencia;
@@ -294,14 +297,14 @@ VISTAS.cronograma = async () => {
     <div class="encabezado"><h2>Cronograma ${S.anio}</h2>
       <div class="botones"><button onclick="S.anio--; irA('cronograma')">◄ ${S.anio - 1}</button>
         <button onclick="S.anio++; irA('cronograma')">${S.anio + 1} ►</button>
-        <span class="chip ${cu.porcentaje == null ? '' : cu.porcentaje >= 90 ? 'verde' : cu.porcentaje >= 70 ? 'ambar' : 'rojo'}">Cumplimiento: ${cu.porcentaje == null ? '—' : cu.porcentaje + ' %'} (${cu.cumplidas}/${cu.esperadas})</span>
+        <span class="chip ${cu.porcentaje == null ? '' : cu.porcentaje >= 90 ? 'verde' : cu.porcentaje >= 70 ? 'ambar' : 'rojo'}">Cumplimiento: ${cu.porcentaje == null ? '—' : cu.porcentaje + ' %'} (${cu.cumplidas}/${cu.esperadas})${cu.porcentaje == null ? '' : ` · a tiempo ${cu.porcentaje_a_tiempo} %`}</span>
         <button onclick="window.print()">Imprimir</button></div></div>
     <div class="tarjeta tabla-wrap"><table class="crono">
       <thead><tr><th>ID</th><th>Equipo</th><th>Mant.</th><th>Frecuencia</th><th>Responsable</th>
         ${MESES.map((m, i) => `<th class="mes ${i === mesActual ? 'actual' : ''}">${m}</th>`).join('')}</tr></thead>
       <tbody>${filas || '<tr><td colspan="17" class="vacio">No hay tareas en el Plan.</td></tr>'}</tbody></table>
       <div class="leyenda">
-        <span><b class="c-pendiente">○</b> programado</span><span><b class="c-hecho">✓</b> hecho</span>
+        <span><b class="c-pendiente">○</b> programado</span><span><b class="c-hecho">✓</b> hecho</span><span><b class="c-tarde">✓</b> fuera de término</span><span><b class="c-cubre">↩</b> hecho acá, cubre uno atrasado</span>
         <span><b class="c-vencido">✗</b> vencido</span><span><b class="c-reprogramado">↻</b> reprogramado</span>
         <span><b class="c-no_realizado">✗</b> no realizado</span><span><b class="c-no_aplica">–</b> no aplica</span>
         <span><b class="c-antes_alta">·</b> antes de cargar la tarea</span><span>Clic en un mes para registrar.</span></div></div>`;

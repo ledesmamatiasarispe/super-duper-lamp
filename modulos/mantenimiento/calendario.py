@@ -57,6 +57,8 @@ def estado_celda(esperado: int, resultados: list[str], anio: int, mes: int, hoy:
 
     hecho        cumplió lo que tocaba (o más)
     extra        no tocaba y se hizo igual
+    tarde        cumplido fuera de término: lo cubrió un trabajo de un mes posterior (cumplir_fuera_de_termino)
+    cubre        no tocaba, y lo que se hizo cubrió un mes atrasado (cumplir_fuera_de_termino)
     pendiente    toca este mes o uno futuro y todavía no se completó
     vencido      tocaba en un mes que ya pasó y no se completó
     reprogramado / no_realizado / no_aplica   tocaba, no se cumplió, y quedó registrado por qué
@@ -77,6 +79,41 @@ def estado_celda(esperado: int, resultados: list[str], anio: int, mes: int, hoy:
         return Celda(esperado, hechos, "antes_alta", detalle)
     pasado = (anio, mes) < (hoy.year, hoy.month)
     return Celda(esperado, hechos, "vencido" if pasado else "pendiente", detalle)
+
+
+# Estados de un mes que quedó debiendo y que un trabajo posterior puede cubrir (fuera de término)
+_DEUDAS = ("vencido", "reprogramado", "no_realizado")
+NOMBRE_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+              "noviembre", "diciembre"]
+
+
+def cumplir_fuera_de_termino(celdas: list[Celda]) -> None:
+    """Un trabajo hecho DESPUÉS del mes en que tocaba cubre ese mes, que pasa a "tarde" (cumplido fuera de término).
+
+    Regla (decidida con el usuario, 2026-11-13): lo que sobra en un mes (todo lo de un mes que no tocaba, o lo que pasa
+    de lo que tocaba) cubre primero el mes atrasado más viejo, siempre que todavía no haya llegado la próxima vez que la
+    tarea vuelve a tocar: si ya llegó, el trabajo cubre esa vez nueva y el atrasado queda vencido. Cuenta un mes vencido,
+    reprogramado o no realizado. El mes donde se hizo pasa de "extra" a "cubre" (ya no es un trabajo de más).
+    Modifica las celdas (las 12 de una tarea en un año) en el lugar."""
+    deudas: list[int] = []   # índices de meses que deben algo, del más viejo al más nuevo
+    for i, c in enumerate(celdas):
+        if c.esperado:   # vuelve a tocar: lo que se debía antes ya no se puede cubrir fuera de término
+            deudas = []
+        sobra, cubiertos = c.hechos - c.esperado, []
+        while sobra > 0 and deudas:
+            d = celdas[deudas[0]]
+            d.hechos += 1
+            c.hechos -= 1
+            sobra -= 1
+            if d.hechos >= d.esperado:
+                d.estado = "tarde"
+                d.detalle = (d.detalle + "; " if d.detalle else "") + f"hecho en {NOMBRE_MES[i]}"
+                cubiertos.append(NOMBRE_MES[deudas.pop(0)])
+        if cubiertos and c.esperado == 0 and c.hechos == 0:
+            c.estado = "cubre"
+            c.detalle = (c.detalle + "; " if c.detalle else "") + "cubre el atrasado de " + " y ".join(cubiertos)
+        if c.estado in _DEUDAS and c.hechos < c.esperado:
+            deudas.append(i)
 
 
 @dataclass

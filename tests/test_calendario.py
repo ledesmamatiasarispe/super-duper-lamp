@@ -97,3 +97,23 @@ def test_grilla_por_horas_proximo_cerca():
     # servicio menos frecuente que el bloque: aparece cada 4 columnas
     g = cal.grilla_por_horas(4000, 53000, [], 50950, 100, 50000, 1000, columnas=8)
     assert estados(g) == ["vacio", "vacio", "vacio", "programado", "vacio", "vacio", "vacio", "programado"]
+
+
+def _fila(frecuencia, inicio, regs, hoy=date(2026, 11, 13)):
+    celdas = [cal.estado_celda(cal.veces_por_mes(frecuencia, inicio, "", m), regs.get(m, []), 2026, m, hoy) for m in range(1, 13)]
+    cal.cumplir_fuera_de_termino(celdas)
+    return [c.estado for c in celdas]
+
+
+def test_cumplido_fuera_de_termino():
+    hecho = ["Realizado"]
+    # tocaba en enero y se hizo en febrero (antes de que vuelva a tocar en abril): enero queda "tarde", febrero "cubre"
+    assert _fila("Trimestral", 1, {2: hecho})[:4] == ["tarde", "cubre", "vacio", "vencido"]
+    # si se hace recién cuando vuelve a tocar, cubre esa vez: el atrasado sigue vencido
+    assert _fila("Trimestral", 1, {4: hecho})[:4] == ["vencido", "vacio", "vacio", "hecho"]
+    # un reprogramado que se hizo después también queda cumplido fuera de término
+    assert _fila("Semestral", 3, {3: ["Reprogramado"], 5: hecho})[2:5] == ["tarde", "vacio", "cubre"]
+    # dos trabajos en un mes que no tocaba cubren un solo atrasado: el segundo sigue siendo extra
+    assert _fila("Trimestral", 1, {2: hecho * 2})[:2] == ["tarde", "extra"]
+    # mensual: siempre vuelve a tocar al mes siguiente, nunca hay "fuera de término"
+    assert "tarde" not in _fila("Mensual", 1, {2: hecho * 2})

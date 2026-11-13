@@ -1466,28 +1466,32 @@ def cronograma(anio: int, hoy: date | None = None) -> dict:
         for r in c.execute("SELECT tarea_id, CAST(substr(fecha, 6, 2) AS INTEGER) AS mes, resultado FROM registros "
                            "WHERE substr(fecha, 1, 4) = ?", (str(anio),)):
             regs.setdefault((r["tarea_id"], r["mes"]), []).append(r["resultado"])
-    filas, esperadas, cumplidas, pendientes_mes = [], 0, 0, 0
+    filas, esperadas, cumplidas, a_tiempo, pendientes_mes = [], 0, 0, 0, 0
     for t in tareas:
         alta = date.fromisoformat(t["creado_en"][:10]) if t["creado_en"] else None
+        objetos = [cal.estado_celda(cal.veces_por_mes(t["frecuencia"], t["mes_inicio"], t["meses_especificos"], mes),
+                                    regs.get((t["id"], mes), []), anio, mes, hoy, alta) for mes in range(1, 13)]
+        cal.cumplir_fuera_de_termino(objetos)   # lo hecho después del mes en que tocaba cubre ese mes ("tarde")
         celdas = []
-        for mes in range(1, 13):
-            esperado = cal.veces_por_mes(t["frecuencia"], t["mes_inicio"], t["meses_especificos"], mes)
-            celda = cal.estado_celda(esperado, regs.get((t["id"], mes), []), anio, mes, hoy, alta)
+        for mes, celda in enumerate(objetos, 1):
             celdas.append(celda.__dict__)
             # antes del alta no se le exigía nada: lo que se registró se ve en la grilla, pero no cuenta en el cumplimiento
             # (si contara, un mes antes del alta solo sumaría cuando se hizo, y el porcentaje daría de más)
             antes_alta = alta and (anio, mes) < (alta.year, alta.month)
-            if celda.estado in ("hecho", "vencido", "reprogramado", "no_realizado") and (anio, mes) < (hoy.year, hoy.month)                     and not antes_alta:
+            if celda.estado in ("hecho", "tarde", "vencido", "reprogramado", "no_realizado") \
+                    and (anio, mes) < (hoy.year, hoy.month) and not antes_alta:
                 esperadas += 1
-                cumplidas += celda.estado == "hecho"
+                cumplidas += celda.estado in ("hecho", "tarde")   # fuera de término cuenta como cumplido...
+                a_tiempo += celda.estado == "hecho"               # ...pero se informa aparte cuánto se hizo a tiempo
             if (anio, mes) == (hoy.year, hoy.month) and celda.estado == "pendiente":
                 pendientes_mes += 1
         filas.append({"tarea_id": t["id"], "codigo": t["codigo"], "equipo": t["equipo"], "equipo_codigo": t["equipo_codigo"],
                       "seccion": t["seccion"], "instructivo_id": t["instructivo_id"], "frecuencia": t["frecuencia"],
                       "cada_horas": t["cada_horas"], "responsable": t["responsable"], "celdas": celdas})
     return {"anio": anio, "hoy": hoy.isoformat(), "filas": filas,
-            "cumplimiento": {"esperadas": esperadas, "cumplidas": cumplidas,
+            "cumplimiento": {"esperadas": esperadas, "cumplidas": cumplidas, "a_tiempo": a_tiempo,
                              "porcentaje": round(100 * cumplidas / esperadas) if esperadas else None,
+                             "porcentaje_a_tiempo": round(100 * a_tiempo / esperadas) if esperadas else None,
                              "pendientes_este_mes": pendientes_mes}}
 
 

@@ -279,3 +279,22 @@ def test_cambio_de_horometro(api):
     assert next(e for e in api.get("/api/horometros").json() if e["codigo"] == "EQ-001")["ultima_lectura"] == 923
     lecturas = api.get(f"/api/lecturas?equipo_id={comp['equipo_id']}").json()
     assert [l["cambio"] for l in lecturas if l["fecha"] == "2026-04-07"] == [1]
+
+
+def test_cumplimiento_cuenta_lo_hecho_fuera_de_termino_y_lo_informa_aparte(api):
+    """Trimestral desde enero: enero hecho en febrero (fuera de término), abril a tiempo, julio y octubre sin hacer."""
+    from modulos.mantenimiento import servicios as sv
+    t = tarea(api, "EQ-002-1")
+    with db.transaccion() as c:
+        c.execute("UPDATE tareas SET activa=0 WHERE id<>?", (t["id"],))
+        c.execute("UPDATE tareas SET frecuencia='Trimestral', mes_inicio=1, meses_especificos='', creado_en='2030-01-01' WHERE id=?", (t["id"],))
+        for f in ("2030-02-10", "2030-04-12"):
+            c.execute("INSERT INTO registros (tarea_id, fecha, resultado) VALUES (?, ?, 'Realizado')", (t["id"], f))
+    cr = sv.cronograma(2030, date(2030, 12, 20))
+    estados = [c["estado"] for c in cr["filas"][0]["celdas"]]
+    assert estados[:4] == ["tarde", "cubre", "vacio", "hecho"] and estados[6] == estados[9] == "vencido"
+    assert "hecho en febrero" in cr["filas"][0]["celdas"][0]["detalle"]
+    cu = cr["cumplimiento"]
+    assert (cu["esperadas"], cu["cumplidas"], cu["a_tiempo"], cu["porcentaje"], cu["porcentaje_a_tiempo"]) == (4, 2, 1, 50, 25)
+    # lo cubierto fuera de término ya no figura como atrasado en Inicio
+    assert not any(x["tarea_id"] == t["id"] and x["mes"] == 1 for x in sv.pendientes(date(2030, 12, 20))["atrasados"])
