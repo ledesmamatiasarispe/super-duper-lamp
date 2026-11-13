@@ -181,6 +181,16 @@ CREATE TABLE IF NOT EXISTS correctivos (
     observaciones     TEXT    NOT NULL DEFAULT '',
     creado_por TEXT, creado_en TEXT
 );
+-- Mapa de planta: cada plano es un dibujo (rectángulos, líneas, textos) en metros. Las máquinas se ubican como puntos
+-- con equipos.plano_id/plano_x/plano_y: una máquina está en un solo plano.
+CREATE TABLE IF NOT EXISTS planos (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre     TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+    ancho      REAL    NOT NULL,
+    alto       REAL    NOT NULL,
+    elementos  TEXT    NOT NULL DEFAULT '[]',          -- JSON: lo dibujado (ver servicios._validar_elementos)
+    creado_por TEXT, creado_en TEXT, modificado_por TEXT, modificado_en TEXT
+);
 CREATE TABLE IF NOT EXISTS config (
     clave  TEXT PRIMARY KEY,
     valor  TEXT NOT NULL
@@ -258,7 +268,10 @@ def _agregar_columnas(c: sqlite3.Connection) -> None:
                                  ("registros", "realizado_por_nombre", "TEXT NOT NULL DEFAULT ''"),
                                  ("correctivos", "realizado_por_nombre", "TEXT NOT NULL DEFAULT ''"),
                                  ("lecturas_horometro", "cambio", "INTEGER NOT NULL DEFAULT 0"),
-                                 ("lecturas_horometro", "horas_anterior", "INTEGER")):
+                                 ("lecturas_horometro", "horas_anterior", "INTEGER"),
+                                 ("equipos", "plano_id", "INTEGER REFERENCES planos(id)"),
+                                 ("equipos", "plano_x", "REAL"),
+                                 ("equipos", "plano_y", "REAL")):
         if columna not in {r[1] for r in c.execute(f"PRAGMA table_info({tabla})")}:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
             if (tabla, columna) == ("personas", "pide_nombre"):   # las dos genéricas de los ejemplos

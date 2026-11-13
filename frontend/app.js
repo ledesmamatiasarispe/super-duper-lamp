@@ -15,10 +15,11 @@ const miles = n => n == null ? '—' : Number(n).toLocaleString('es-AR');
 const leerToken = () => { try { return localStorage.getItem('mant_token'); } catch { return null; } };
 const guardarToken = t => { try { t ? localStorage.setItem('mant_token', t) : localStorage.removeItem('mant_token'); } catch { /* sin almacenamiento */ } };
 
-async function api(ruta, { metodo = 'GET', datos } = {}) {
+async function api(ruta, { metodo = 'GET', datos, formulario } = {}) {
   const opts = { method: metodo, headers: {} };
   if (S.token) opts.headers.Authorization = 'Bearer ' + S.token;
   if (datos !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(datos); }
+  if (formulario) opts.body = formulario;   // FormData (archivos): el navegador pone el Content-Type con su separador
   const r = await fetch(ruta, opts);
   if (r.status === 401 && !ruta.endsWith('/login')) { salir(); throw new Error('La sesión venció: iniciar sesión de nuevo.'); }
   const cuerpo = await r.json().catch(() => ({}));
@@ -100,8 +101,7 @@ async function entrar() {
   $('#login').classList.add('oculto'); $('#app').classList.remove('oculto');
   $('#usuario-nombre').textContent = S.usuario.nombre;
   document.querySelectorAll('.solo-admin').forEach(el => el.classList.toggle('oculto', !S.usuario.es_admin));
-  // con una contraseña provisoria no se puede hacer otra cosa hasta cambiarla (el servidor también lo exige)
-  if (S.usuario.debe_cambiar) { $('#vista').innerHTML = ''; return modalPassword(true); }
+  bannerPassword();   // con una contraseña provisoria se puede usar todo, pero queda el aviso hasta cambiarla
   try { await recargarOpciones(); } catch (e) { return avisar(e.message, true); }
   irA(location.hash.slice(1) || 'inicio');
   if (S.usuario.es_admin) preguntarActualizacion();
@@ -152,7 +152,7 @@ async function instalarActualizacion() {
 // ── OPCIONES ── (se entra desde la barra, al lado de "Cambiar contraseña"; acá se irán sumando más opciones).
 // Es una función declarada (se registra en VISTAS más abajo, donde se crea): un "VISTAS.x =" acá cortaría la carga.
 async function vistaOpciones() {
-  const a = await api('/api/actualizacion');
+  const [a, marca] = await Promise.all([api('/api/actualizacion'), api('/api/marca')]);
   const admin = S.usuario.es_admin;
   let estado;
   if (!a.repo) estado = '<p class="sutil">Todavía no hay un repositorio de actualizaciones configurado.</p>';
@@ -171,11 +171,47 @@ async function vistaOpciones() {
       ${estado}
       ${a.repo ? `<p class="sutil">Se busca en GitHub (${esc(a.repo)}) cada vez que arranca la app${a.buscado_en ? ' · última búsqueda: ' + esc(a.buscado_en) : ''}.</p>` : ''}
       ${admin && a.repo ? '<button onclick="buscarActualizacion(this)">Buscar ahora</button>' : ''}</div>
+    <div class="tarjeta" id="op-password"><h3>Contraseña</h3>
+      ${S.usuario.debe_cambiar ? '<p><span class="chip ambar">Provisoria</span> Estás usando una contraseña provisoria: elegí una propia.</p>'
+        : '<p class="sutil">Para entrar se usa el legajo y esta contraseña. Al cambiarla se cierran las otras sesiones abiertas.</p>'}
+      <button class="primario" type="button" onclick="modalPassword()">Cambiar contraseña</button></div>
     ${admin ? `<div class="tarjeta" id="op-plan"><h3>Plan de mantenimiento</h3>
       <p class="sutil">Programa de una vez todas las secciones de instructivos que los equipos todavía no tienen en el Plan.
         La frecuencia viene sugerida por la tabla «Frecuencias» de cada instructivo; antes de guardar se revisa y se corrige.</p>
-      <button class="primario" onclick="modalProgramarTodos()">Programar todos</button></div>` : ''}
+      <button class="primario" onclick="modalProgramarTodos()">Programar todos</button></div>
+    <div class="tarjeta" id="op-marca"><h3>Nombre y logo</h3>
+      <p class="sutil">Lo que se ve en la barra de arriba, en la pantalla de ingreso y en la pestaña del navegador.</p>
+      <div class="marca-vista"><img src="${esc($('.marca img').getAttribute('src'))}" alt=""><b>${esc(marca.nombre)}</b></div>
+      <form id="f-marca-nombre" class="campos"><label>Nombre de la app <input name="nombre" maxlength="40" value="${esc(marca.propio ? marca.nombre : '')}" placeholder="UltraMantenimiento"></label>
+        <div class="botones"><button class="primario">Guardar nombre</button></div><p class="error"></p></form>
+      <form id="f-marca-logo" class="campos"><label>Logo nuevo <input name="archivo" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.svg" required></label>
+        <div class="botones"><button class="primario">Subir logo</button>
+          ${marca.logo ? '<button type="button" onclick="quitarLogo()">Volver al logo original</button>' : ''}</div>
+        <p class="sutil">PNG, JPG, GIF, WEBP o SVG, hasta 2 MB. Mejor cuadrado y con fondo transparente: se muestra chico, al lado del nombre.</p>
+        <p class="error"></p></form></div>` : ''}
     <div class="tarjeta"><h3>Próximamente</h3><p class="sutil">Acá se van a ir sumando opciones para ajustar la app a cada uno.</p></div>`;
+  activarOpcionesMarca();
+}
+
+/** Nombre y logo: el servidor los pone en la página, así que después de cambiarlos se recarga entera. */
+function activarOpcionesMarca() {
+  const fn = $('#f-marca-nombre'), fl = $('#f-marca-logo');
+  if (!fn) return;
+  fn.addEventListener('submit', ev => {
+    ev.preventDefault();
+    enviar(fn, async d => { await api('/api/marca/nombre', { metodo: 'PUT', datos: { nombre: d.nombre } }); location.reload(); });
+  });
+  fl.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const datos = new FormData(); datos.append('archivo', fl.archivo.files[0]);
+    try { await api('/api/marca/logo', { metodo: 'POST', formulario: datos }); location.reload(); }
+    catch (e) { $('.error', fl).textContent = e.message; }
+  });
+}
+
+async function quitarLogo() {
+  if (!confirm('¿Volver al logo original?')) return;
+  try { await api('/api/marca/logo', { metodo: 'DELETE' }); location.reload(); } catch (e) { avisar(e.message, true); }
 }
 
 /** "Programar todos": lista lo que falta en el Plan con la frecuencia sugerida, editable, y lo guarda todo junto. */
@@ -292,40 +328,48 @@ async function buscarActualizacion(boton) {
   catch (e) { avisar(e.message, true); boton.disabled = false; boton.textContent = 'Buscar ahora'; }
 }
 
-/** Cambiar la propia contraseña. obligatorio: la provisoria que puso un administrador, sin opción de cancelar. */
-function modalPassword(obligatorio = false) {
+/** Banner amarillo, en todas las vistas, mientras el usuario siga con una contraseña provisoria
+ *  (la de fábrica o la que puso un administrador). No bloquea nada: se va al cambiarla. */
+function bannerPassword() {
+  const b = $('#banner-password');
+  if (!S.usuario?.debe_cambiar) return b?.remove();
+  if (b) return;
+  $('#vista').insertAdjacentHTML('beforebegin', `<div id="banner-password" class="banner-password no-imprimir" role="status">
+    <span>Estás usando una contraseña provisoria. Cambiala en Opciones.</span>
+    <button class="chico" type="button" onclick="irA('opciones')">Ir a Opciones</button></div>`);
+}
+
+/** Cambiar la propia contraseña. */
+function modalPassword() {
   abrirModal(`
-    <h2>${obligatorio ? 'Elegí tu contraseña' : 'Cambiar contraseña'}</h2>
-    ${obligatorio ? '<p>Estás entrando con una contraseña provisoria. Antes de seguir, elegí una propia.</p>' : ''}
+    <h2>Cambiar contraseña</h2>
     <form id="f-password"><div class="campos">
-      <label class="ancho">Contraseña ${obligatorio ? 'provisoria' : 'actual'} <input type="password" name="actual" autocomplete="current-password" required></label>
+      <label class="ancho">Contraseña actual <input type="password" name="actual" autocomplete="current-password" required></label>
       <label>Nueva (mínimo 6) <input type="password" name="nueva" autocomplete="new-password" required></label>
       <label>Repetir la nueva <input type="password" name="repetida" autocomplete="new-password" required></label>
     </div><p class="error"></p>
     <div class="botones"><button class="primario" type="submit">Guardar</button>
-      ${obligatorio ? '<button type="button" onclick="cerrarModal(); salir()">Salir</button>' : '<button type="button" onclick="cerrarModal()">Cancelar</button>'}</div></form>`);
-  $('#modal').dataset.obligatorio = obligatorio ? '1' : '';
+      <button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`);
   const f = $('#f-password');
   f.addEventListener('submit', ev => {
     ev.preventDefault();
     enviar(f, async d => {
       if (d.nueva !== d.repetida) throw new Error('Las dos contraseñas nuevas no coinciden.');
       await api('/api/auth/password', { metodo: 'POST', datos: d });
-      $('#modal').dataset.obligatorio = ''; cerrarModal(); avisar('Contraseña cambiada.');
-      if (obligatorio) entrar();
+      cerrarModal(); avisar('Contraseña cambiada.');
+      S.usuario.debe_cambiar = false; bannerPassword();
+      if (location.hash.slice(1) === 'opciones') irA('opciones');   // la tarjeta Contraseña deja de decir "provisoria"
     });
   });
 }
-// Esc no cierra el cambio obligatorio
-$('#modal').addEventListener('cancel', ev => { if ($('#modal').dataset.obligatorio) ev.preventDefault(); });
-$('#mi-password').addEventListener('click', () => modalPassword(false));
+$('#mi-password').addEventListener('click', () => modalPassword());
 $('#mis-opciones').addEventListener('click', () => irA('opciones'));
 
 function mostrarLogin() { $('#app').classList.add('oculto'); $('#login').classList.remove('oculto'); $('input[name=legajo]').focus(); }
 
 function salir() {
   if (S.token) fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + S.token } }).catch(() => {});
-  S.token = null; guardarToken(null); mostrarLogin();
+  S.token = null; guardarToken(null); $('#banner-password')?.remove(); mostrarLogin();
 }
 
 $('#form-login').addEventListener('submit', async ev => {
@@ -1088,7 +1132,7 @@ function modalUsuario(legajo) {
     <form id="f-usuario"><div class="campos">
       <label>Legajo <input name="legajo" type="number" min="1" step="1" value="${u ? u.legajo : ''}" ${u ? 'disabled' : 'required'}></label>
       <label>Nombre <input name="nombre" value="${esc(u?.nombre || '')}" required></label>
-      ${u ? '' : '<label class="ancho">Contraseña provisoria (mínimo 6; la cambia al entrar) <input name="password" type="text" autocomplete="off" required></label>'}
+      ${u ? '' : '<label class="ancho">Contraseña provisoria (mínimo 6; le queda un aviso hasta que la cambie en Opciones) <input name="password" type="text" autocomplete="off" required></label>'}
       <label class="check ancho"><input type="checkbox" name="es_admin" ${u?.es_admin ? 'checked' : ''}> Administrador (configura el sistema y maneja usuarios)</label>
     </div><p class="error"></p>
     <div class="botones"><button class="primario" type="submit">Guardar</button><button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`);
@@ -1109,7 +1153,7 @@ function modalRestablecer(legajo) {
   const u = S.usuarios.find(x => x.legajo === legajo);
   abrirModal(`
     <h2>Restablecer contraseña de ${esc(u.nombre)}</h2>
-    <p>Para quien se olvidó la suya: le ponés una provisoria, se la pasás, y al entrar elige una propia. Se le cierran las sesiones abiertas.</p>
+    <p>Para quien se olvidó la suya: le ponés una provisoria y se la pasás; le queda un aviso hasta que elija una propia en Opciones. Se le cierran las sesiones abiertas.</p>
     <form id="f-restablecer"><div class="campos"><label class="ancho">Contraseña provisoria (mínimo 6) <input name="password" type="text" autocomplete="off" required></label></div>
     <p class="error"></p><div class="botones"><button class="primario" type="submit">Restablecer</button><button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`);
   const f = $('#f-restablecer');

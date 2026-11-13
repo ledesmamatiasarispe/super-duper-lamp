@@ -333,6 +333,18 @@
       { el: () => uno('#f-it > .botones .primario'), titulo: 'Guardar', texto: 'Guarda el instructivo (o la revisión nueva). <b>Cancelar</b> o <b>Después</b> salen sin guardar lo escrito.' },
     ],
 
+    mapa: () => [
+      { titulo: 'Mapa de planta', texto: 'Planos de la planta dibujados en la app, con las máquinas como puntos. Puede haber uno por nave o sector; cada máquina está en un solo plano.' },
+      { el: () => enVista('.mapa-pestanas'), titulo: 'Los planos', texto: 'Cada botón abre un plano.' },
+      { el: () => enVista('.mapa-leyenda'), titulo: 'El color de cada máquina', texto: 'Es lo mismo que muestra Inicio: <b>rojo</b> si tiene algo vencido o atrasado, <b>ámbar</b> si le toca algo este mes o un servicio por horas está cerca, '
+        + '<b>azul</b> si a un servicio por horas le falta un dato (lectura o próximo inicial) y <b>verde</b> si está al día.' },
+      { el: () => enVista('#mapa-svg'), titulo: 'Tocar una máquina', texto: 'Muestra lo que tiene pendiente, con el botón <b>Registrar</b> para cargarlo ahí mismo.' },
+      { el: () => boton('Nuevo plano'), titulo: 'Nuevo plano (solo administradores)', texto: 'Nombre y medidas en metros del área a dibujar. Al crearlo se abre para dibujar.' },
+      { el: () => boton('Editar este plano'), titulo: 'Editar (solo administradores)', texto: 'Se dibuja sobre una grilla: <b>Rectángulo</b> para naves, sectores o salas (con nombre y color), <b>Línea / pared</b> y <b>Texto</b>. '
+        + 'Con <b>Seleccionar / mover</b> se elige algo para cambiarlo, arrastrarlo o borrarlo (tecla Supr). Las máquinas se ponen con <b>Ubicar</b> y después un toque en el plano; '
+        + 'una que estaba en otro plano se muda. Nada se guarda hasta <b>Guardar plano</b>.' },
+      { el: () => boton('Eliminar plano'), titulo: 'Eliminar plano', texto: 'Borra solo el dibujo: sus máquinas quedan sin ubicar y su historial no se toca.' },
+    ],
     personal: () => [
       { titulo: 'Personal y proveedores', texto: 'Quiénes hacen los trabajos, y cuántos preventivos y correctivos hizo cada uno en el año, con sus horas-hombre.' },
       { el: () => tarjeta('Mantenimiento interno'), titulo: 'Mantenimiento interno', texto: 'Los operarios de mantenimiento. Los usuarios del sistema aparecen solos acá (su nombre se cambia en Usuarios).' },
@@ -352,8 +364,8 @@
 
     usuarios: () => [
       { titulo: 'Usuarios', texto: 'Quiénes entran al sistema. Un <b>usuario</b> ve todo y registra trabajos; un <b>administrador</b> además configura equipos, instructivos, Plan y personal, y maneja los usuarios.' },
-      { el: () => boton('Nuevo usuario'), titulo: 'Nuevo usuario', texto: 'Legajo, nombre y una contraseña provisoria: al entrar por primera vez le pide elegir una propia. Pasa a figurar en Personal.' },
-      { el: () => boton('Restablecer contraseña'), titulo: 'Restablecer contraseña', texto: 'Para quien se olvidó la suya: le ponés una provisoria, se la pasás, y al entrar elige otra. Se le cierran las sesiones abiertas.' },
+      { el: () => boton('Nuevo usuario'), titulo: 'Nuevo usuario', texto: 'Legajo, nombre y una contraseña provisoria: le queda un aviso amarillo hasta que elija una propia en Opciones. Pasa a figurar en Personal.' },
+      { el: () => boton('Restablecer contraseña'), titulo: 'Restablecer contraseña', texto: 'Para quien se olvidó la suya: le ponés una provisoria y se la pasás; le queda un aviso hasta que elija otra en Opciones. Se le cierran las sesiones abiertas.' },
       { el: () => boton('Dar de baja'), titulo: 'Dar de baja', texto: 'Ya no puede entrar, pero <b>lo que registró se conserva</b>. Siempre tiene que quedar al menos un administrador activo.' },
     ],
 
@@ -361,11 +373,15 @@
       { titulo: 'Opciones', texto: 'Ajustes de la app. Se entra desde <b>Opciones</b>, arriba a la derecha, al lado de "Cambiar contraseña". Acá se irán sumando más opciones.' },
       { el: () => document.getElementById('op-version'), titulo: 'Versión y actualizaciones', texto: 'Qué versión está instalada y si hay una más nueva. Cada vez que arranca, la app la busca sola, y al entrar un administrador le pregunta si quiere instalarla. '
         + 'Si responde <b>Ahora no</b>, no se vuelve a preguntar por una semana, pero se puede actualizar antes desde acá.' },
+      { el: () => document.getElementById('op-password'), titulo: 'Contraseña', texto: 'Para elegir una contraseña propia: pide la actual y la nueva dos veces. Las otras sesiones abiertas se cierran. '
+        + 'Mientras sigas con una contraseña provisoria (la de fábrica o la que te puso un administrador) se puede usar todo, pero arriba queda un aviso amarillo hasta que la cambies.' },
       { el: () => boton('Buscar ahora'), titulo: 'Buscar ahora', texto: 'Vuelve a consultar si salió una versión nueva, sin esperar al próximo arranque.' },
       { el: () => boton('Actualizar ahora'), titulo: 'Actualizar ahora', texto: 'Baja la versión nueva, comprueba que el archivo esté sano, y la app se cierra y vuelve a abrir sola. La base de datos y los archivos adjuntos no se tocan.' },
       { el: () => boton('Programar todos'), titulo: 'Programar todos (solo administradores)', texto: 'Arma de una vez las tareas del Plan que faltan: una por cada sección de instructivo que un equipo todavía no tiene programada. '
         + 'La frecuencia viene sugerida por la tabla «Frecuencias» del instructivo; se revisa en la lista (frecuencia, mes de inicio, horas) y se guardan todas juntas. '
         + '<b>Repartir meses</b> elige los meses de inicio para que los trabajos no se junten en los mismos meses, contando también lo que ya está en el Plan.' },
+      { el: () => document.getElementById('op-marca'), titulo: 'Nombre y logo (solo administradores)', texto: 'Cambia el nombre y el logo que se ven en la barra de arriba, en la pantalla de ingreso y en la pestaña del navegador, para todos los que usan la app. '
+        + 'Con el nombre vacío vuelve a "UltraMantenimiento"; <b>Volver al logo original</b> recupera el de fábrica. Se guardan con los datos, así que las actualizaciones no los pisan.' },
     ],
 
     // ── formularios del modal ──

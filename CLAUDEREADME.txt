@@ -35,7 +35,8 @@ La idea en una línea:
                     PRAGMA table_info, _migrar_areas…), datos de ejemplo. ROOT/data: en desarrollo la raíz del
                     proyecto; COMPILADA, la carpeta del .exe (ver punto 6).
     auth.py         sesiones con token Bearer (tabla sesiones), hash PBKDF2. auth.sesion vs auth.usuario_actual
-                    (este último bloquea a quien tiene contraseña provisoria, debe_cambiar=1). solo_admin.
+                    (hoy equivalentes: la contraseña provisoria, debe_cambiar=1, NO bloquea; /api/auth/yo la
+                    informa y el frontend muestra un banner amarillo hasta que se cambie en Opciones). solo_admin.
     usuarios.py     alta/baja de usuarios; siempre queda un admin activo; nadie se da de baja a sí mismo;
                     cada usuario tiene su ficha en personas (Mantenimiento interno).
     calendario.py   lógica pura del cronograma: frecuencias, estado de cada mes, servicios por horas.
@@ -148,7 +149,9 @@ La idea en una línea:
   v1.0.4 (Inicio con las tablas a todo el ancho, una debajo de la otra: en columnas se cortaban los nombres),
   v1.0.5 (botón "Imprimir lista del mes" en Inicio: hoja apaisada con casilleros para completar a mano),
   v1.0.6 (cambio de horómetro en Horómetros: tramos de lecturas y próximos corridos al horómetro nuevo; el
-  cumplimiento del año no cuenta los meses anteriores al alta de la tarea).
+  cumplimiento del año no cuenta los meses anteriores al alta de la tarea),
+  v1.0.7 (Mapa de planta: planos dibujados con las máquinas como puntos coloreados por su estado; nombre y logo de la
+  app en Opciones; la contraseña provisoria ya no bloquea: banner amarillo hasta cambiarla en Opciones).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS

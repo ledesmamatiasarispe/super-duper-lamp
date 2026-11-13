@@ -52,7 +52,7 @@ def _token(authorization: Optional[str]) -> str:
 
 
 def sesion(authorization: Optional[str] = Header(None)) -> dict:
-    """La sesión, aunque tenga pendiente cambiar la contraseña: solo para ver quién es, cambiarla o salir."""
+    """La sesión vigente: quién es y si sigue con una contraseña provisoria (debe_cambiar)."""
     token = _token(authorization)
     with transaccion() as c:
         u = c.execute("SELECT u.legajo, u.nombre, u.es_admin, u.debe_cambiar FROM sesiones s JOIN usuarios u ON u.legajo = s.legajo "
@@ -65,9 +65,8 @@ def sesion(authorization: Optional[str] = Header(None)) -> dict:
 
 
 def usuario_actual(usuario: dict = Depends(sesion)) -> dict:
-    """Para todo lo demás: con una contraseña provisoria no se hace nada hasta cambiarla."""
-    if usuario["debe_cambiar"]:
-        raise HTTPException(403, "Antes de seguir hay que cambiar la contraseña provisoria")
+    """Para todo lo demás. Una contraseña provisoria (debe_cambiar) no bloquea nada: el frontend
+    muestra un aviso hasta que se cambie en Opciones."""
     return usuario
 
 

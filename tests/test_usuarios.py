@@ -18,9 +18,9 @@ def test_alta_con_contrasena_provisoria(api):
     assert (u["es_admin"], u["debe_cambiar"]) == (0, 1)
     assert "Ya existe" in error(api.post("/api/usuarios", json={"legajo": 20, "nombre": "Otro", "password": "123456"}))
     tok = entrar(api, 20, "123456").json()["token"]
-    # con la provisoria solo puede ver quién es y cambiarla
+    # con la provisoria puede usar todo; /api/auth/yo la informa para mostrar el aviso
     assert api.get("/api/auth/yo", headers=como(api, tok)).json()["debe_cambiar"] is True
-    assert api.get("/api/equipos", headers=como(api, tok)).status_code == 403
+    assert api.get("/api/equipos", headers=como(api, tok)).status_code == 200
     assert "actual no es correcta" in error(api.post("/api/auth/password", json={"actual": "mal", "nueva": "propia1"}, headers=como(api, tok)))
     assert "distinta" in error(api.post("/api/auth/password", json={"actual": "123456", "nueva": "123456"}, headers=como(api, tok)))
     assert api.post("/api/auth/password", json={"actual": "123456", "nueva": "propia1"}, headers=como(api, tok)).status_code == 200

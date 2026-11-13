@@ -1,0 +1,54 @@
+/* mapa de planta (mapa.js) */
+.mapa-pestanas { margin-bottom: .6rem; }
+.mapa-leyenda { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 .6rem; }
+.mapa-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .mapa-cuerpo { grid-template-columns: minmax(0, 1fr); } }
+.mapa-lienzo { padding: .5rem; }
+#mapa-svg { display: block; width: 100%; height: auto; max-height: 78vh; touch-action: none; user-select: none; }
+#mapa-svg.editando { cursor: crosshair; }
+#mapa-svg.editando.herr-mover { cursor: default; }
+#mapa-svg.editando.herr-mover [data-el], #mapa-svg.editando.herr-mover [data-equipo] { cursor: move; }
+.mapa-lado h3 { margin-top: .8rem; }
+.mapa-lado h3:first-child { margin-top: 0; }
+.mapa-lado label { display: flex; flex-direction: column; gap: .15rem; font-size: .9rem; margin-bottom: .45rem; }
+.mapa-lado .fila-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.mapa-herramientas { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; margin-bottom: .5rem; }
+.mapa-ayuda { font-size: .88rem; }
+.mapa-prop { background: var(--gris-claro); border-radius: 8px; padding: .6rem; margin: .4rem 0; }
+.mapa-lista { list-style: none; padding: 0; margin: 0; max-height: 40vh; overflow: auto; }
+.mapa-lista li { display: flex; justify-content: space-between; align-items: center; gap: .4rem; padding: .3rem 0;
+  border-bottom: 1px solid var(--borde); font-size: .9rem; }
+
+/* el dibujo */
+.pl-borde { fill: #fff; stroke: var(--texto); }
+.pl-grilla { fill: none; stroke: #c9d2db; }
+.pl-rect { fill-opacity: .9; }
+.pl-linea { stroke-linecap: round; }
+.pl-tocar { stroke: transparent; stroke-linecap: round; }
+.pl-etiqueta { text-anchor: middle; dominant-baseline: central; font-weight: 600; }
+.pl-texto { font-weight: 600; }
+.pl-gris .pl-rect { fill: var(--gris-claro); stroke: var(--sutil); } .pl-gris text { fill: var(--texto); }
+.pl-azul .pl-rect { fill: var(--azul-claro); stroke: var(--azul); }
+.pl-verde .pl-rect { fill: var(--verde-claro); stroke: var(--verde); }
+.pl-ambar .pl-rect { fill: var(--ambar-claro); stroke: var(--ambar); }
+.pl-rojo .pl-rect { fill: var(--rojo-claro); stroke: var(--rojo); }
+.pl-gris .pl-linea { stroke: var(--texto); }
+.pl-azul .pl-linea { stroke: var(--azul); } .pl-azul text { fill: var(--azul); }
+.pl-verde .pl-linea { stroke: var(--verde); } .pl-verde text { fill: var(--verde); }
+.pl-ambar .pl-linea { stroke: var(--ambar); } .pl-ambar text { fill: var(--ambar); }
+.pl-rojo .pl-linea { stroke: var(--rojo); } .pl-rojo text { fill: var(--rojo); }
+.sel .pl-rect, .sel .pl-linea { stroke-dasharray: 1 .6; }
+.sel text { text-decoration: underline; }
+.pl-previa { fill: rgba(31, 95, 153, .12); stroke: var(--azul); stroke-dasharray: 1 .6; }
+
+/* las máquinas */
+.mapa-punto { cursor: pointer; }
+.mapa-punto circle { stroke: #fff; }
+.mapa-punto text { text-anchor: middle; font-weight: 700; fill: var(--texto); paint-order: stroke; stroke: #fff; }
+.punto-rojo circle { fill: var(--rojo); } .punto-ambar circle { fill: var(--ambar); }
+.punto-azul circle { fill: var(--azul); } .punto-verde circle { fill: var(--verde); }
+.mapa-punto.sel circle { stroke: var(--texto); stroke-dasharray: .6 .4; }
+@media print {
+  .mapa-lado, .mapa-pestanas .botones { display: none; }
+  .mapa-cuerpo { grid-template-columns: 1fr; }
+}

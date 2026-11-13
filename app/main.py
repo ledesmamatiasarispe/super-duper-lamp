@@ -4,6 +4,7 @@ Los cuerpos llegan como dict y se pasan crudos a servicios: es ahí donde se val
 fecha mal escrita termina en un mensaje claro (400) y no en un error interno.
 """
 from contextlib import asynccontextmanager
+from html import escape
 from pathlib import Path
 from typing import Optional
 
@@ -52,6 +53,13 @@ def pantalla():
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
     for ext in (".js", ".css"):
         html = html.replace(f'{ext}"', f'{ext}?v={VERSION}"')
+    # el nombre y el logo se eligen en Opciones; se ponen acá porque el login también los muestra, antes de la sesión
+    m = sv.marca()
+    html = html.replace(sv.NOMBRE_APP, escape(m["nombre"]))
+    if m["logo"]:
+        logo = f'/api/marca/logo?v={m["logo"]}'
+        html = html.replace('type="image/svg+xml" href="/static/icono.svg"', f'type="{sv.archivo_logo()["tipo"]}" href="{logo}"')
+        html = html.replace("/static/icono.svg", logo).replace("/static/logo.svg", logo)
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
@@ -142,6 +150,59 @@ def alta_usuario(legajo: int, u: dict = Admin):
 @app.post("/api/usuarios/{legajo}/password")
 def restablecer_password(legajo: int, body: dict = Body(...), u: dict = Admin):
     return usuarios.restablecer_password(u, legajo, password=body.get("password"))
+
+
+# ── marca (Opciones): nombre y logo de la página ──
+@app.get("/api/marca/logo", include_in_schema=False)
+def logo():
+    """Sin sesión: lo muestra la pantalla de login. Un SVG puede traer scripts: la política de seguridad no los deja correr
+    aunque alguien abra la imagen sola en una pestaña."""
+    a = sv.archivo_logo()
+    return FileResponse(a["ruta"], media_type=a["tipo"], headers={
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+        "X-Content-Type-Options": "nosniff", "Cache-Control": "public, max-age=31536000, immutable"})
+
+
+@app.get("/api/marca")
+def ver_marca(u: dict = Usuario):
+    return sv.marca()
+
+
+@app.put("/api/marca/nombre")
+def cambiar_nombre_app(body: dict = Body(...), u: dict = Admin):
+    return sv.cambiar_nombre_app(u, body.get("nombre"))
+
+
+@app.post("/api/marca/logo")
+async def subir_logo(archivo: UploadFile = File(...), u: dict = Admin):
+    return sv.subir_logo(u, nombre=archivo.filename, datos=await archivo.read(sv.MAX_LOGO + 1))
+
+
+@app.delete("/api/marca/logo")
+def quitar_logo(u: dict = Admin):
+    return sv.quitar_logo(u)
+
+
+# ── mapa de planta ──
+@app.get("/api/planos")
+def mapa_planta(u: dict = Usuario):
+    return sv.mapa_planta()
+
+
+@app.post("/api/planos")
+def crear_plano(body: dict = Body(...), u: dict = Admin):
+    return sv.crear_plano(u, nombre=body.get("nombre"), ancho=body.get("ancho"), alto=body.get("alto"))
+
+
+@app.put("/api/planos/{plano_id}")
+def guardar_plano(plano_id: int, body: dict = Body(...), u: dict = Admin):
+    return sv.guardar_plano(u, plano_id, **{k: body.get(k) for k in ("nombre", "ancho", "alto", "elementos", "equipos")})
+
+
+@app.delete("/api/planos/{plano_id}")
+def eliminar_plano(plano_id: int, u: dict = Admin):
+    sv.eliminar_plano(u, plano_id)
+    return {"ok": True}
 
 
 # ── listas para los formularios ──
