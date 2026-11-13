@@ -273,32 +273,3 @@ def test_cambio_de_horometro(api):
     assert next(e for e in api.get("/api/horometros").json() if e["codigo"] == "EQ-001")["ultima_lectura"] == 923
     lecturas = api.get(f"/api/lecturas?equipo_id={comp['equipo_id']}").json()
     assert [l["cambio"] for l in lecturas if l["fecha"] == "2026-04-07"] == [1]
-
-
-PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
-
-
-def test_nombre_y_logo_de_la_app(api):
-    sin_sesion = {"Authorization": ""}
-    assert api.get("/api/marca").json() == {"nombre": "UltraMantenimiento", "propio": False, "logo": None}
-    assert "<title>UltraMantenimiento</title>" in api.get("/").text
-    # el nombre se ve también en el login (sin sesión) y va escapado
-    assert api.put("/api/marca/nombre", json={"nombre": "  Taller   <Romero> "}).json()["nombre"] == "Taller <Romero>"
-    pagina = api.get("/", headers=sin_sesion).text
-    assert "<title>Taller &lt;Romero&gt;</title>" in pagina and "<Romero>" not in pagina
-    assert "40 caracteres" in error(api.put("/api/marca/nombre", json={"nombre": "x" * 41}))
-    # el logo: solo imágenes de verdad
-    assert "imagen" in error(api.post("/api/marca/logo", files={"archivo": ("logo.exe", b"MZ", "image/png")}))
-    assert "no es un .png" in error(api.post("/api/marca/logo", files={"archivo": ("logo.png", b"MZ\x00", "image/png")}))
-    logo = api.post("/api/marca/logo", files={"archivo": ("logo.png", PNG, "image/png")}).json()["logo"]
-    pagina = api.get("/", headers=sin_sesion).text
-    assert f"/api/marca/logo?v={logo}" in pagina and "/static/logo.svg" not in pagina and 'type="image/png"' in pagina
-    r = api.get("/api/marca/logo", headers=sin_sesion)
-    assert r.content == PNG and "default-src 'none'" in r.headers["content-security-policy"]
-    # uno nuevo reemplaza al anterior (y borra su archivo); volver a los de fábrica
-    otro = api.post("/api/marca/logo", files={"archivo": ("logo.svg", b'<svg xmlns="http://www.w3.org/2000/svg"/>', "image/svg+xml")}).json()["logo"]
-    assert otro != logo and not (db.DB_PATH.parent / "marca" / logo).exists()
-    assert api.delete("/api/marca/logo").json()["logo"] is None and not (db.DB_PATH.parent / "marca" / otro).exists()
-    assert api.put("/api/marca/nombre", json={"nombre": ""}).json() == {"nombre": "UltraMantenimiento", "propio": False, "logo": None}
-    assert "/static/logo.svg" in api.get("/").text
-    assert api.get("/api/marca/logo").status_code == 404

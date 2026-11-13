@@ -4,16 +4,14 @@ Los cuerpos llegan como dict y se pasan crudos a servicios: es ahí donde se val
 fecha mal escrita termina en un mensaje claro (400) y no en un error interno.
 """
 from contextlib import asynccontextmanager
-from html import escape
 from pathlib import Path
 from typing import Optional
 
 from fastapi import Body, Depends, FastAPI, File, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import actualizador, auth, servicios as sv, usuarios
-from .version import VERSION
+from . import actualizador, auth, rutas_base, servicios as sv, usuarios
 from . import calendario as cal
 from .db import inicializar
 
@@ -31,6 +29,7 @@ async def _inicio(_app):
 
 app = FastAPI(title="UltraMantenimiento", lifespan=_inicio)
 app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
+app.include_router(rutas_base.router)
 
 Usuario = Depends(auth.usuario_actual)
 Admin = Depends(auth.solo_admin)
@@ -48,19 +47,7 @@ async def _no_encontrado(_req: Request, e: sv.NoEncontrado):
 
 @app.get("/", include_in_schema=False)
 def pantalla():
-    """La página pide sus .js y .css con la versión (app.js?v=1.0.3): al actualizar cambia la dirección y el navegador
-    baja los nuevos en vez de seguir con los de su caché. La página misma no se guarda, para que siempre traiga la versión."""
-    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
-    for ext in (".js", ".css"):
-        html = html.replace(f'{ext}"', f'{ext}?v={VERSION}"')
-    # el nombre y el logo se eligen en Opciones; se ponen acá porque el login también los muestra, antes de la sesión
-    m = sv.marca()
-    html = html.replace(sv.NOMBRE_APP, escape(m["nombre"]))
-    if m["logo"]:
-        logo = f'/api/marca/logo?v={m["logo"]}'
-        html = html.replace('type="image/svg+xml" href="/static/icono.svg"', f'type="{sv.archivo_logo()["tipo"]}" href="{logo}"')
-        html = html.replace("/static/icono.svg", logo).replace("/static/logo.svg", logo)
-    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+    return rutas_base.pagina(FRONTEND / "index.html")
 
 
 # ── sesión ──
@@ -94,12 +81,6 @@ def cambiar_mi_password(body: dict = Body(...), u: dict = Sesion):
 
 
 # ── versión y actualizaciones ──
-@app.get("/api/version")
-def version():
-    """Sin sesión: la pantalla la consulta mientras la app se reinicia después de actualizar."""
-    return {"version": VERSION}
-
-
 @app.get("/api/actualizacion")
 def estado_actualizacion(u: dict = Usuario):
     return actualizador.estado(es_admin=bool(u["es_admin"]))
@@ -150,37 +131,6 @@ def alta_usuario(legajo: int, u: dict = Admin):
 @app.post("/api/usuarios/{legajo}/password")
 def restablecer_password(legajo: int, body: dict = Body(...), u: dict = Admin):
     return usuarios.restablecer_password(u, legajo, password=body.get("password"))
-
-
-# ── marca (Opciones): nombre y logo de la página ──
-@app.get("/api/marca/logo", include_in_schema=False)
-def logo():
-    """Sin sesión: lo muestra la pantalla de login. Un SVG puede traer scripts: la política de seguridad no los deja correr
-    aunque alguien abra la imagen sola en una pestaña."""
-    a = sv.archivo_logo()
-    return FileResponse(a["ruta"], media_type=a["tipo"], headers={
-        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
-        "X-Content-Type-Options": "nosniff", "Cache-Control": "public, max-age=31536000, immutable"})
-
-
-@app.get("/api/marca")
-def ver_marca(u: dict = Usuario):
-    return sv.marca()
-
-
-@app.put("/api/marca/nombre")
-def cambiar_nombre_app(body: dict = Body(...), u: dict = Admin):
-    return sv.cambiar_nombre_app(u, body.get("nombre"))
-
-
-@app.post("/api/marca/logo")
-async def subir_logo(archivo: UploadFile = File(...), u: dict = Admin):
-    return sv.subir_logo(u, nombre=archivo.filename, datos=await archivo.read(sv.MAX_LOGO + 1))
-
-
-@app.delete("/api/marca/logo")
-def quitar_logo(u: dict = Admin):
-    return sv.quitar_logo(u)
 
 
 # ── mapa de planta ──

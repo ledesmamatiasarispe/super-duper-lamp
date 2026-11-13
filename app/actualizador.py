@@ -4,15 +4,26 @@ Al arrancar, la app consulta el último release de REPO (app/version.py). Si es 
 los administradores se les pregunta al entrar si quieren actualizar. "Ahora no" no vuelve a preguntar por una semana
 (la fecha se guarda en la base, en config: vale para todos los administradores, porque la app es una sola).
 
-Instalar: baja el .zip del release, controla su SHA-256 contra el .sha256 publicado al lado (sin ese archivo no se
-instala), lo descomprime en data/actualizacion/ y deja corriendo un .bat que espera a que la app se cierre, copia los
-archivos nuevos sobre la instalación (sin tocar data/, donde están la base y los adjuntos) y la vuelve a abrir.
+MISMO ARCHIVO en UltraMantenimiento y Gestión Automotor (lo propio sale de version.py: APP, PREFIJO, REPO). Edificios
+de Mamá tiene su propia versión (se instala también desde el código fuente y en Linux/Mac), con los mismos pasos.
+
+Instalar:
+1. Baja el .zip del release y controla su SHA-256 contra el .sha256 publicado al lado (sin ese archivo no se instala).
+2. Lo descomprime en data/actualizacion/nueva controlando que ningún archivo se escriba fuera de esa carpeta.
+3. Copia la base: data/<base>_antes_de_v<versión>.db (con la API de backup de SQLite; quedan las últimas
+   COPIAS_A_GUARDAR).
+4. Deja corriendo un .bat que espera a que la app se cierre, guarda el programa actual en data/actualizacion/anterior,
+   copia el nuevo encima (sin tocar data/, donde están la base y los adjuntos) y, si la copia falla, vuelve a poner el
+   anterior. Después abre la app.
+La conexión a GitHub usa los certificados de Windows más los de certifi (ver _contexto_ssl).
 
 Solo la versión compilada se instala sola; en desarrollo se informa la versión nueva pero se actualiza con git."""
 import hashlib
 import json
 import os
 import shutil
+import sqlite3
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -22,16 +33,18 @@ import urllib.error
 import urllib.request
 import zipfile
 from datetime import date, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 from . import db
 from . import version as v
 from .servicios import ErrorDeNegocio
 
-# MANT_API_ACTUALIZACION la reemplaza solo para probar la actualización completa contra un servidor local
-API = os.environ.get("MANT_API_ACTUALIZACION", "https://api.github.com/repos/{repo}/releases/latest")
-EXE = "UltraMantenimiento.exe"
+# <PREFIJO>_API_ACTUALIZACION la reemplaza solo para probar la actualización completa contra un servidor local
+API = os.environ.get(f"{v.PREFIJO}_API_ACTUALIZACION", "https://api.github.com/repos/{repo}/releases/latest")
+EXE = v.APP + ".exe"
 POSPONER_DIAS = 7
+COPIAS_A_GUARDAR = 3   # copias de la base de antes de cada actualización
 _CACHE_SEGUNDOS = 6 * 3600   # la consulta a GitHub se repite cada tanto, no en cada pantalla
 _REINTENTO_SEGUNDOS = 10 * 60   # si falló, se vuelve a probar a los 10 minutos
 
@@ -52,11 +65,38 @@ def es_mas_nueva(etiqueta: str, actual: str = v.VERSION) -> bool:
     return _numeros(etiqueta) > _numeros(actual)
 
 
+@lru_cache(maxsize=1)
+def _contexto_ssl() -> ssl.SSLContext:
+    """Los certificados raíz de Windows MÁS los de certifi (la lista de Mozilla, viaja dentro del programa).
+    Windows no trae todas las raíces instaladas: las baja a medida que su propio navegador las pide, y Python no
+    dispara esa descarga. En una PC que nunca abrió GitHub con Edge faltaba la raíz y la búsqueda fallaba con
+    "unable to get local issuer certificate". Las de Windows siguen: ahí están las de un antivirus o proxy que revisa
+    el HTTPS de la empresa, que certifi no conoce. (Lo resolvió primero Gestión Automotor.)"""
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+        ctx.load_verify_locations(certifi.where())
+    except (ImportError, OSError):   # sin certifi queda el de Windows solo
+        pass
+    return ctx
+
+
+SIN_CERTIFICADO = ("No se pudo verificar el certificado de GitHub desde esta PC. Suele ser un antivirus o un proxy que "
+                   "revisa las conexiones HTTPS. Probá abrir https://github.com en el navegador de esta PC y volver a "
+                   "buscar; si sigue, bajá el .zip desde la página del release y descomprimilo sobre la instalación "
+                   "(la carpeta data no se toca).")
+
+
 def _pedir(url: str, timeout: float = 10) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "UltraMantenimiento/" + v.VERSION,
+    req = urllib.request.Request(url, headers={"User-Agent": v.APP + "/" + v.VERSION,
                                                "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:   # noqa: S310 (siempre https de GitHub)
-        return r.read()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=_contexto_ssl()) as r:   # noqa: S310 (https de GitHub)
+            return r.read()
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, ssl.SSLCertVerificationError):
+            raise ErrorDeNegocio(SIN_CERTIFICADO) from e
+        raise
 
 
 def _config(clave: str) -> str | None:
@@ -101,6 +141,8 @@ def buscar(forzar: bool = False) -> dict:
                     info["zip"] = {"nombre": zips[0], "url": assets[zips[0]]}
                     if zips[0] + ".sha256" in assets:
                         info["sha256"] = assets[zips[0] + ".sha256"]
+            except ErrorDeNegocio as e:   # el certificado: el mensaje ya dice qué hacer
+                info["error"] = str(e)
             except urllib.error.HTTPError as e:
                 # 404 en releases/latest: el repositorio existe pero todavía no publicó ninguna versión (no es una falla)
                 info["error"] = None if e.code == 404 else _explicar_http(e)
@@ -149,10 +191,12 @@ def _extraer(zip_path: Path, destino: Path) -> Path:
 
 
 def preparar(info: dict, carpeta: Path) -> Path:
-    """Baja el .zip, controla el SHA-256 y lo descomprime. Devuelve la carpeta con la versión nueva."""
-    if carpeta.exists():
-        shutil.rmtree(carpeta, ignore_errors=True)
-    carpeta.mkdir(parents=True)
+    """Baja el .zip, controla el SHA-256 y lo descomprime. Devuelve la carpeta con la versión nueva.
+    Lo de la actualización anterior se borra, salvo anterior/ (el programa de antes, por si hay que volver a mano)."""
+    carpeta.mkdir(parents=True, exist_ok=True)
+    for viejo in carpeta.iterdir():
+        if viejo.name != "anterior":
+            shutil.rmtree(viejo, ignore_errors=True) if viejo.is_dir() else viejo.unlink(missing_ok=True)
     datos = _pedir(info["zip"]["url"], timeout=300)
     esperado = _pedir(info["sha256"]).decode("ascii", "replace").split()[0].strip().lower()
     if hashlib.sha256(datos).hexdigest() != esperado:
@@ -162,8 +206,52 @@ def preparar(info: dict, carpeta: Path) -> Path:
     return _extraer(zip_path, carpeta / "nueva")
 
 
+def respaldar_base(version_nueva: str) -> Path | None:
+    """Copia la base antes de cambiar el programa: si la versión nueva la migra y algo sale mal, está la de antes.
+    Con la API de backup de SQLite (consistente aunque haya otros usuarios conectados). Quedan las últimas
+    COPIAS_A_GUARDAR."""
+    if not db.DB_PATH.exists():
+        return None
+    copia = db.DB_PATH.with_name(f"{db.DB_PATH.stem}_antes_de_{version_nueva}.db")
+    copia.unlink(missing_ok=True)
+    origen, destino = db.conectar(), sqlite3.connect(copia)
+    try:
+        origen.backup(destino)
+    finally:
+        destino.close()
+        origen.close()
+    viejas = sorted(db.DB_PATH.parent.glob(f"{db.DB_PATH.stem}_antes_de_v*.db"), key=lambda f: f.stat().st_mtime)
+    for vieja in viejas[:-COPIAS_A_GUARDAR]:
+        vieja.unlink(missing_ok=True)
+    return copia
+
+
+def script_windows(*, nueva: Path, instalacion: Path, trabajo: Path, version_nueva: str, pid: int) -> str:
+    """El .bat que instala con la app cerrada (Windows no deja pisar un programa abierto). robocopy sin /MIR: agrega y
+    pisa, nunca borra, y /XD deja data/ como está. robocopy devuelve 8 o más cuando falla: ahí vuelve el anterior."""
+    datos = db.DB_PATH.parent.resolve()
+    anterior = trabajo / "anterior"
+    log = trabajo.parent / "actualizacion.log"
+    return f"""@echo off
+chcp 65001 >nul
+echo Actualizando {v.APP} a {version_nueva}...
+:esperar
+tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul && (timeout /t 1 /nobreak >nul & goto esperar)
+if exist "{anterior}" rmdir /S /Q "{anterior}"
+robocopy "{instalacion}" "{anterior}" /E /XD "{datos}" /R:2 /W:1 /NP /LOG:"{log}"
+robocopy "{nueva}" "{instalacion}" /E /XD "{datos}" /R:10 /W:2 /NP /LOG+:"{log}"
+if errorlevel 8 (
+  echo No se pudo copiar la version nueva: se vuelve a poner la anterior.
+  robocopy "{anterior}" "{instalacion}" /E /XD "{datos}" /R:10 /W:2 /NP /LOG+:"{log}"
+)
+start "" "{instalacion / EXE}"
+rmdir /S /Q "{nueva}"
+del "%~f0"
+"""
+
+
 def instalar() -> dict:
-    """Prepara la versión nueva y deja un .bat que la copia cuando la app se cierra; la app se cierra sola enseguida."""
+    """Prepara la versión nueva, copia la base y deja un .bat que instala cuando la app se cierra (se cierra sola)."""
     if not v.COMPILADA:
         raise ErrorDeNegocio("La actualización automática es para la versión compilada. En desarrollo, se actualiza con git.")
     info = buscar(forzar=True)
@@ -171,23 +259,12 @@ def instalar() -> dict:
         raise ErrorDeNegocio("No hay una versión más nueva para instalar.")
     if not (info["zip"] and info["sha256"]):
         raise ErrorDeNegocio("El release no trae el .zip y su .sha256: no se puede instalar automáticamente.")
-    instalacion = Path(sys.executable).resolve().parent
     trabajo = db.DB_PATH.parent / "actualizacion"
     nueva = preparar(info, trabajo)
-    log = trabajo.parent / "actualizacion.log"
-    bat = Path(tempfile.gettempdir()) / f"actualizar_mantenimiento_{os.getpid()}.bat"
-    datos = db.DB_PATH.parent.resolve()
-    # robocopy sin /MIR: agrega y pisa, nunca borra (así data/ y cualquier archivo propio de la instalación quedan)
-    bat.write_text(f"""@echo off
-chcp 65001 >nul
-echo Actualizando UltraMantenimiento a {info['nueva']}...
-:esperar
-tasklist /FI "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul && (timeout /t 1 /nobreak >nul & goto esperar)
-robocopy "{nueva}" "{instalacion}" /E /XD "{datos}" /R:10 /W:2 /NP /LOG:"{log}"
-start "" "{instalacion / EXE}"
-rmdir /S /Q "{trabajo}"
-del "%~f0"
-""", encoding="utf-8")
+    respaldar_base(info["nueva"])
+    bat = Path(tempfile.gettempdir()) / f"actualizar_{v.APP.lower()}_{os.getpid()}.bat"
+    bat.write_text(script_windows(nueva=nueva, instalacion=Path(sys.executable).resolve().parent, trabajo=trabajo,
+                                  version_nueva=info["nueva"], pid=os.getpid()), encoding="utf-8")
     subprocess.Popen(["cmd", "/c", str(bat)], close_fds=True,
                      creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP)
     threading.Timer(1.5, os._exit, [0]).start()   # deja salir la respuesta antes de cerrarse

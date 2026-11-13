@@ -176,3 +176,27 @@ La idea en una línea:
   cumplimiento (ver cronograma()). Copia previa: data/mantenimiento_antes_de_cronograma_2026.db.
 - Copias de seguridad tomadas antes de cada migración, en data/: mantenimiento_antes_de_orden.db,
   mantenimiento_antes_de_separar_instructivos.db, mantenimiento_antes_de_ejemplo.db.
+
+8. BASE COMÚN CON LAS OTRAS DOS APPS (2026-11-13)
+  UltraMantenimiento, Gestión Automotor APB y Edificios de Mamá comparten la base (FastAPI + SQLite + JS sin
+  framework). Para que una mejora pase de una a otra copiando archivos, lo común vive en archivos IDÉNTICOS en las tres;
+  lo propio de cada app sale de app/version.py (APP = identificador fijo, NOMBRE = nombre de fábrica, PREFIJO de las
+  variables de entorno, PUERTO de fábrica, VERSION, REPO).
+  - app/marca.py: nombre y logo de la página (config marca_nombre / marca_logo, logo en data/marca/).
+  - app/puerto.py: puerto elegido en la pantalla de ajustes (config "puerto"; <PREFIJO>_PUERTO lo fija). Al arrancar:
+    si el elegido lo usa otro programa, el siguiente libre; si lo usa esta misma app, solo se abre el navegador
+    (se pregunta /api/version, que contesta "app").
+  - app/rutas_base.py: "/" (index.html con ?v=VERSION, nombre y logo), /api/version, /api/marca*, /api/puerto.
+  - frontend/comun.js + comun.css: banner de contraseña provisoria (ya NO bloquea: auth.usuario_actual deja pasar),
+    modalPassword y las tarjetas Contraseña, Puerto y Nombre y logo. Cada app define PANTALLA_AJUSTES en app.js
+    (Opciones, o Administración en Edificios de Mamá).
+  - tests/test_base.py: los tests de todo eso.
+  - Iguales en lógica (no en archivo): db.transaccion() con BEGIN IMMEDIATE, busy_timeout y SAVEPOINT (reentrante;
+    executescript va fuera de la transacción porque confirma solo); el actualizador (certificados del sistema + certifi,
+    copia de la base con la API de backup antes de instalar —quedan las últimas 3—, y el .bat de Windows guarda el
+    programa en data/actualizacion/anterior y lo vuelve a poner si robocopy falla). UltraMantenimiento y Gestión
+    Automotor comparten app/actualizador.py idéntico; Edificios de Mamá tiene el suyo (también instala desde el código
+    fuente y en Linux/Mac).
+  Al cambiar uno de estos archivos en una app, copiarlo a las otras dos y correr tests/test_base.py en las tres.
+  Pendiente (tanda 2, no hecha): importar datos de otra instalación (hoy solo Gestión Automotor), Ayuda/Tour en
+  Edificios de Mamá, chequeo de pasos huérfanos en las tres, historial de cambios, mail semanal.

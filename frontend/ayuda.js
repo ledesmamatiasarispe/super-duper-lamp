@@ -380,6 +380,9 @@
       { el: () => boton('Programar todos'), titulo: 'Programar todos (solo administradores)', texto: 'Arma de una vez las tareas del Plan que faltan: una por cada sección de instructivo que un equipo todavía no tiene programada. '
         + 'La frecuencia viene sugerida por la tabla «Frecuencias» del instructivo; se revisa en la lista (frecuencia, mes de inicio, horas) y se guardan todas juntas. '
         + '<b>Repartir meses</b> elige los meses de inicio para que los trabajos no se junten en los mismos meses, contando también lo que ya está en el Plan.' },
+      { el: () => document.getElementById('op-puerto'), titulo: 'Puerto (solo administradores)', texto: 'El número que va después de localhost: en la dirección de la app. '
+        + 'Se cambia si choca con otro programa de la PC (por ejemplo, otra app parecida); vale desde la próxima vez que se abre. Si al abrirla el elegido está ocupado, '
+        + 'la app arranca igual en el siguiente libre y lo avisa acá.' },
       { el: () => document.getElementById('op-marca'), titulo: 'Nombre y logo (solo administradores)', texto: 'Cambia el nombre y el logo que se ven en la barra de arriba, en la pantalla de ingreso y en la pestaña del navegador, para todos los que usan la app. '
         + 'Con el nombre vacío vuelve a "UltraMantenimiento"; <b>Volver al logo original</b> recupera el de fábrica. Se guardan con los datos, así que las actualizaciones no los pisan.' },
     ],

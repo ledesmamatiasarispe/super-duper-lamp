@@ -4,6 +4,8 @@
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+/** La pantalla donde comun.js pone Contraseña, Puerto y Nombre y logo. */
+const PANTALLA_AJUSTES = { vista: 'opciones', titulo: 'Opciones' };
 const S = { token: null, usuario: null, opciones: null, tareas: [], anio: new Date().getFullYear() };
 
 // ── utilidades ──
@@ -152,7 +154,7 @@ async function instalarActualizacion() {
 // ── OPCIONES ── (se entra desde la barra, al lado de "Cambiar contraseña"; acá se irán sumando más opciones).
 // Es una función declarada (se registra en VISTAS más abajo, donde se crea): un "VISTAS.x =" acá cortaría la carga.
 async function vistaOpciones() {
-  const [a, marca] = await Promise.all([api('/api/actualizacion'), api('/api/marca')]);
+  const [a, base] = await Promise.all([api('/api/actualizacion'), tarjetasBase()]);
   const admin = S.usuario.es_admin;
   let estado;
   if (!a.repo) estado = '<p class="sutil">Todavía no hay un repositorio de actualizaciones configurado.</p>';
@@ -171,47 +173,13 @@ async function vistaOpciones() {
       ${estado}
       ${a.repo ? `<p class="sutil">Se busca en GitHub (${esc(a.repo)}) cada vez que arranca la app${a.buscado_en ? ' · última búsqueda: ' + esc(a.buscado_en) : ''}.</p>` : ''}
       ${admin && a.repo ? '<button onclick="buscarActualizacion(this)">Buscar ahora</button>' : ''}</div>
-    <div class="tarjeta" id="op-password"><h3>Contraseña</h3>
-      ${S.usuario.debe_cambiar ? '<p><span class="chip ambar">Provisoria</span> Estás usando una contraseña provisoria: elegí una propia.</p>'
-        : '<p class="sutil">Para entrar se usa el legajo y esta contraseña. Al cambiarla se cierran las otras sesiones abiertas.</p>'}
-      <button class="primario" type="button" onclick="modalPassword()">Cambiar contraseña</button></div>
+    ${base}
     ${admin ? `<div class="tarjeta" id="op-plan"><h3>Plan de mantenimiento</h3>
       <p class="sutil">Programa de una vez todas las secciones de instructivos que los equipos todavía no tienen en el Plan.
         La frecuencia viene sugerida por la tabla «Frecuencias» de cada instructivo; antes de guardar se revisa y se corrige.</p>
-      <button class="primario" onclick="modalProgramarTodos()">Programar todos</button></div>
-    <div class="tarjeta" id="op-marca"><h3>Nombre y logo</h3>
-      <p class="sutil">Lo que se ve en la barra de arriba, en la pantalla de ingreso y en la pestaña del navegador.</p>
-      <div class="marca-vista"><img src="${esc($('.marca img').getAttribute('src'))}" alt=""><b>${esc(marca.nombre)}</b></div>
-      <form id="f-marca-nombre" class="campos"><label>Nombre de la app <input name="nombre" maxlength="40" value="${esc(marca.propio ? marca.nombre : '')}" placeholder="UltraMantenimiento"></label>
-        <div class="botones"><button class="primario">Guardar nombre</button></div><p class="error"></p></form>
-      <form id="f-marca-logo" class="campos"><label>Logo nuevo <input name="archivo" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.svg" required></label>
-        <div class="botones"><button class="primario">Subir logo</button>
-          ${marca.logo ? '<button type="button" onclick="quitarLogo()">Volver al logo original</button>' : ''}</div>
-        <p class="sutil">PNG, JPG, GIF, WEBP o SVG, hasta 2 MB. Mejor cuadrado y con fondo transparente: se muestra chico, al lado del nombre.</p>
-        <p class="error"></p></form></div>` : ''}
+      <button class="primario" onclick="modalProgramarTodos()">Programar todos</button></div>` : ''}
     <div class="tarjeta"><h3>Próximamente</h3><p class="sutil">Acá se van a ir sumando opciones para ajustar la app a cada uno.</p></div>`;
-  activarOpcionesMarca();
-}
-
-/** Nombre y logo: el servidor los pone en la página, así que después de cambiarlos se recarga entera. */
-function activarOpcionesMarca() {
-  const fn = $('#f-marca-nombre'), fl = $('#f-marca-logo');
-  if (!fn) return;
-  fn.addEventListener('submit', ev => {
-    ev.preventDefault();
-    enviar(fn, async d => { await api('/api/marca/nombre', { metodo: 'PUT', datos: { nombre: d.nombre } }); location.reload(); });
-  });
-  fl.addEventListener('submit', async ev => {
-    ev.preventDefault();
-    const datos = new FormData(); datos.append('archivo', fl.archivo.files[0]);
-    try { await api('/api/marca/logo', { metodo: 'POST', formulario: datos }); location.reload(); }
-    catch (e) { $('.error', fl).textContent = e.message; }
-  });
-}
-
-async function quitarLogo() {
-  if (!confirm('¿Volver al logo original?')) return;
-  try { await api('/api/marca/logo', { metodo: 'DELETE' }); location.reload(); } catch (e) { avisar(e.message, true); }
+  activarTarjetasBase();
 }
 
 /** "Programar todos": lista lo que falta en el Plan con la frecuencia sugerida, editable, y lo guarda todo junto. */
@@ -330,38 +298,6 @@ async function buscarActualizacion(boton) {
 
 /** Banner amarillo, en todas las vistas, mientras el usuario siga con una contraseña provisoria
  *  (la de fábrica o la que puso un administrador). No bloquea nada: se va al cambiarla. */
-function bannerPassword() {
-  const b = $('#banner-password');
-  if (!S.usuario?.debe_cambiar) return b?.remove();
-  if (b) return;
-  $('#vista').insertAdjacentHTML('beforebegin', `<div id="banner-password" class="banner-password no-imprimir" role="status">
-    <span>Estás usando una contraseña provisoria. Cambiala en Opciones.</span>
-    <button class="chico" type="button" onclick="irA('opciones')">Ir a Opciones</button></div>`);
-}
-
-/** Cambiar la propia contraseña. */
-function modalPassword() {
-  abrirModal(`
-    <h2>Cambiar contraseña</h2>
-    <form id="f-password"><div class="campos">
-      <label class="ancho">Contraseña actual <input type="password" name="actual" autocomplete="current-password" required></label>
-      <label>Nueva (mínimo 6) <input type="password" name="nueva" autocomplete="new-password" required></label>
-      <label>Repetir la nueva <input type="password" name="repetida" autocomplete="new-password" required></label>
-    </div><p class="error"></p>
-    <div class="botones"><button class="primario" type="submit">Guardar</button>
-      <button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`);
-  const f = $('#f-password');
-  f.addEventListener('submit', ev => {
-    ev.preventDefault();
-    enviar(f, async d => {
-      if (d.nueva !== d.repetida) throw new Error('Las dos contraseñas nuevas no coinciden.');
-      await api('/api/auth/password', { metodo: 'POST', datos: d });
-      cerrarModal(); avisar('Contraseña cambiada.');
-      S.usuario.debe_cambiar = false; bannerPassword();
-      if (location.hash.slice(1) === 'opciones') irA('opciones');   // la tarjeta Contraseña deja de decir "provisoria"
-    });
-  });
-}
 $('#mi-password').addEventListener('click', () => modalPassword());
 $('#mis-opciones').addEventListener('click', () => irA('opciones'));
 
@@ -369,7 +305,7 @@ function mostrarLogin() { $('#app').classList.add('oculto'); $('#login').classLi
 
 function salir() {
   if (S.token) fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + S.token } }).catch(() => {});
-  S.token = null; guardarToken(null); $('#banner-password')?.remove(); mostrarLogin();
+  S.token = null; guardarToken(null); quitarBannerPassword(); mostrarLogin();
 }
 
 $('#form-login').addEventListener('submit', async ev => {

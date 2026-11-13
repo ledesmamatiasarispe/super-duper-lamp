@@ -136,3 +136,34 @@ def test_instalar_y_permisos(api, github):
     assert api.get("/api/actualizacion", headers=h).json()["preguntar"] is False
     assert api.post("/api/actualizacion/instalar", headers=h).status_code == 403
     assert api.post("/api/actualizacion/posponer", headers=h).status_code == 403
+
+
+def test_antes_de_instalar_se_copia_la_base_y_quedan_las_ultimas(api):
+    for n in range(1, 6):
+        copia = act.respaldar_base(f"v9.0.{n}")
+        assert copia.exists() and copia.name.endswith(f"_antes_de_v9.0.{n}.db")
+    copias = sorted(p.name for p in act.db.DB_PATH.parent.glob("*_antes_de_v*.db"))
+    assert len(copias) == act.COPIAS_A_GUARDAR and copias[-1].endswith("v9.0.5.db")
+
+
+def test_el_bat_guarda_el_programa_anterior_y_lo_vuelve_a_poner_si_falla(tmp_path):
+    bat = act.script_windows(nueva=tmp_path / "nueva", instalacion=tmp_path / "app", trabajo=tmp_path / "data" / "actualizacion",
+                             version_nueva="v9.0.0", pid=1234)
+    anterior = str(tmp_path / "data" / "actualizacion" / "anterior")
+    lineas = bat.splitlines()
+    guardar = next(i for i, l in enumerate(lineas) if l.startswith("robocopy") and f'"{anterior}" /E' in l)
+    copiar = next(i for i, l in enumerate(lineas) if l.startswith(f'robocopy "{tmp_path / "nueva"}"'))
+    volver = next(i for i, l in enumerate(lineas) if l.strip().startswith(f'robocopy "{anterior}"'))
+    assert guardar < copiar < volver and "if errorlevel 8" in bat and "/XD" in lineas[copiar]
+
+
+def test_sin_certificado_explica_que_hacer(monkeypatch):
+    import ssl
+    import urllib.error
+
+    def falla(*a, **k):
+        raise urllib.error.URLError(ssl.SSLCertVerificationError("unable to get local issuer certificate"))
+
+    monkeypatch.setattr(act.urllib.request, "urlopen", falla)
+    with pytest.raises(act.ErrorDeNegocio, match="antivirus o un proxy"):
+        act._pedir("https://api.github.com/x")

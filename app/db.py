@@ -2,12 +2,20 @@
 
 Mismo criterio que GNC API (sqlite3 directo, una conexión por request), con dos
 diferencias: claves foráneas activadas (PRAGMA foreign_keys) y todo el esquema en
-un solo lugar. Sin migraciones todavía: la base de prueba se borra y se recrea.
+un solo lugar. Las columnas que se suman después van también en _agregar_columnas.
+
+CONCURRENCIA (igual que Gestión Automotor): varios usuarios escriben a la vez contra el mismo archivo. Cada
+transacción arranca con BEGIN IMMEDIATE, que toma el permiso de escritura AL EMPEZAR: dos casos de uso que escriben
+quedan en fila (el segundo espera hasta busy_timeout), y lo que uno valida leyendo (por ejemplo, que el horómetro no
+baje) no lo puede invalidar otro entre la lectura y la escritura. Con el BEGIN diferido de sqlite3 los dos leían, y el
+segundo en escribir recibía "database is locked" en vez del mensaje de la regla.
 """
+import itertools
 import json
 import os
 import sqlite3
 import sys
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +24,7 @@ from pathlib import Path
 # que quedar al lado del .exe, fuera de lo que se reemplaza. En desarrollo, en la raíz del proyecto.
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.environ.get("MANT_DB", ROOT / "data" / "mantenimiento.db"))
+ESPERA_MS = 30_000   # cuánto espera una escritura a que termine la de otro usuario antes de dar error
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -200,29 +209,61 @@ CREATE TABLE IF NOT EXISTS config (
 
 def conectar() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    # isolation_level=None: las transacciones las abre transaccion() a mano (BEGIN IMMEDIATE), no sqlite3 por su cuenta
+    conn = sqlite3.connect(DB_PATH, timeout=ESPERA_MS / 1000, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute(f"PRAGMA busy_timeout = {ESPERA_MS}")
     return conn
+
+
+_en_curso = threading.local()   # la conexión de la transacción abierta en este hilo (si hay)
+_savepoints = itertools.count(1)
 
 
 @contextmanager
 def transaccion():
-    """Una transacción por caso de uso: commit si termina bien, rollback si algo lanza."""
+    """Una transacción por caso de uso: commit si termina bien, rollback si algo lanza.
+    BEGIN IMMEDIATE serializa las escrituras (ver el docstring del módulo).
+
+    REENTRANTE: si este hilo ya tiene una abierta, el bloque de adentro usa la MISMA conexión dentro de un SAVEPOINT
+    (si falla deshace solo lo suyo y relanza; si termina bien no confirma nada: confirma el bloque de afuera). Sin esto,
+    un caso de uso que llamara a otro abriría una segunda conexión y esperaría para siempre a la primera."""
+    externa = getattr(_en_curso, "conn", None)
+    if externa is not None:
+        nombre = f"sp{next(_savepoints)}"
+        externa.execute(f"SAVEPOINT {nombre}")
+        try:
+            yield externa
+        except BaseException:
+            externa.execute(f"ROLLBACK TO {nombre}")
+            externa.execute(f"RELEASE {nombre}")
+            raise
+        externa.execute(f"RELEASE {nombre}")
+        return
     conn = conectar()
+    _en_curso.conn = conn
     try:
+        conn.execute("BEGIN IMMEDIATE")
         yield conn
-        conn.commit()
-    except Exception:
-        conn.rollback()
+        conn.execute("COMMIT")
+    except BaseException:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
         raise
     finally:
+        _en_curso.conn = None
         conn.close()
 
 
 def inicializar(con_ejemplos: bool = True) -> None:
+    # executescript confirma por su cuenta: va fuera de transaccion() (son todos CREATE ... IF NOT EXISTS)
+    conn = conectar()
+    try:
+        conn.executescript(ESQUEMA)
+    finally:
+        conn.close()
     with transaccion() as c:
-        c.executescript(ESQUEMA)
         _agregar_columnas(c)
         _migrar_areas(c)
         c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_personas_usuario ON personas(usuario_legajo)")
