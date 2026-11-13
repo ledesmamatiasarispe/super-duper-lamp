@@ -159,12 +159,27 @@
       { el: () => enVista('.mapa-pestanas'), titulo: 'Los planos', texto: 'Cada botón abre un plano.' },
       { el: () => enVista('.mapa-leyenda'), titulo: 'El color de cada máquina', texto: 'Es lo mismo que muestra Inicio: <b>rojo</b> si tiene algo vencido o atrasado, <b>ámbar</b> si le toca algo este mes o un servicio por horas está cerca, '
         + '<b>azul</b> si a un servicio por horas le falta un dato (lectura o próximo inicial) y <b>verde</b> si está al día.' },
-      { el: () => enVista('#mapa-svg'), titulo: 'Tocar una máquina', texto: 'Muestra lo que tiene pendiente, con el botón <b>Registrar</b> para cargarlo ahí mismo.' },
+      { el: () => enVista('#mapa-svg'), titulo: 'Tocar una máquina', texto: 'Muestra lo que tiene pendiente, con el botón <b>Registrar</b> para cargarlo ahí mismo. '
+        + 'La rueda del mouse acerca y aleja; arrastrando se mueve el plano. <b>Ajustar</b> lo vuelve a mostrar entero.' },
       { el: () => boton('Nuevo plano'), titulo: 'Nuevo plano (solo administradores)', texto: 'Nombre y medidas en metros del área a dibujar. Al crearlo se abre para dibujar.' },
-      { el: () => boton('Editar este plano'), titulo: 'Editar (solo administradores)', texto: 'Se dibuja sobre una grilla: <b>Rectángulo</b> para naves, sectores o salas (con nombre y color), <b>Línea / pared</b> y <b>Texto</b>. '
-        + 'Con <b>Seleccionar / mover</b> se elige algo para cambiarlo, arrastrarlo o borrarlo (tecla Supr). Las máquinas se ponen con <b>Ubicar</b> y después un toque en el plano; '
-        + 'una que estaba en otro plano se muda. Nada se guarda hasta <b>Guardar plano</b>.' },
+      { el: () => boton('Editar este plano'), titulo: 'Editar: un croquis como el de SolidWorks u Onshape', texto: 'Se dibuja con <b>Línea</b> (encadenada), <b>Rectángulo</b>, <b>Círculo</b>, <b>Arco</b>, <b>Polígono</b> y <b>Texto</b>, '
+        + 'con imanes a puntos, medios y líneas, y guías horizontales y verticales. Las <b>restricciones</b> (horizontal, paralela, tangente...) y las <b>cotas</b> mandan sobre el dibujo. '
+        + 'Nada se guarda hasta <b>Guardar plano</b>.' },
       { el: () => boton('Eliminar plano'), titulo: 'Eliminar plano', texto: 'Borra solo el dibujo: sus máquinas quedan sin ubicar y su historial no se toca.' },
+      // editando
+      { el: () => tarjeta('Dibujo') || enVista('.mapa-herramientas'), titulo: 'Herramientas de dibujo', texto: '<b>Línea</b>: cada clic sigue desde el anterior; doble clic o Esc termina. Mientras se dibuja se puede '
+        + '<b>escribir la medida</b>: "12" y Enter (largo), "12&lt;30" (largo y ángulo), "4,3" en un rectángulo (ancho y alto) o el radio de un círculo. Teclas: L, R, C, A, D (cota), T (recortar), E (extender), S (seleccionar).' },
+      { el: () => boton('Cota'), titulo: 'Cotas que mandan', texto: 'Con <b>Cota</b> se toca una línea (largo), un círculo o arco (radio), dos puntos (distancia), un punto y una línea, o dos líneas (ángulo). '
+        + 'Se escribe el valor y el dibujo se acomoda. Doble clic en una cota la cambia; arrastrándola se corre.' },
+      { el: () => boton('Recortar'), titulo: 'Recortar y extender', texto: '<b>Recortar</b> saca el tramo de línea que se toca, hasta las líneas que la cruzan. <b>Extender</b> estira la punta más cercana hasta la próxima línea o círculo.' },
+      { el: () => enVista('.mapa-historial .chip'), titulo: 'Grados de libertad', texto: 'Cuánto se puede mover todavía el dibujo sin romper restricciones ni cotas. Los puntos <b>negros</b> están totalmente definidos; '
+        + 'los <b>azules</b> todavía se pueden mover. Con 0 dice <b>Totalmente definido</b>.' },
+      { el: () => enVista('.mapa-opciones'), titulo: 'Opciones del dibujo', texto: '<b>Construcción</b>: líneas guía punteadas que no se ven en el plano terminado. <b>Restricciones automáticas</b>: al dibujar se agregan '
+        + 'horizontal, vertical, punto sobre línea, etc. según lo que marcó el imán. <b>Mostrar restricciones</b>: los íconos al lado de cada cosa (se tocan para elegirlos y borrarlos).' },
+      { el: () => enVista('#mapa-propiedades .mapa-prop'), titulo: 'Lo elegido', texto: 'Con <b>Seleccionar</b> se elige tocando (Mayús suma) o con una caja. El panel muestra sus medidas, las <b>restricciones</b> que se le pueden aplicar '
+        + '(según lo elegido: dos líneas → paralela, perpendicular, igual; línea y círculo → tangente; dos puntos → coincidente...) y las que ya tiene, y las operaciones: '
+        + '<b>Equidistancia</b> (una copia a cierta distancia; "a los dos lados" arma una pared con espesor), <b>Simetría</b> (respecto de la última línea elegida) y <b>Duplicar</b>. '
+        + 'Ctrl+Z / Ctrl+Y deshacen y rehacen; Ctrl+C / Ctrl+V copian.' },
     ],
     personal: () => [
       { titulo: 'Personal y proveedores', texto: 'Quiénes hacen los trabajos, y cuántos preventivos y correctivos hizo cada uno en el año, con sus horas-hombre.' },

@@ -1513,9 +1513,109 @@ def _medidas_plano(ancho, alto) -> tuple[float, float]:
             _numero_obligatorio(alto, "el alto", minimo=1, maximo=MAX_LADO_PLANO))
 
 
-def _validar_elementos(elementos, ancho: float, alto: float) -> list[dict]:
-    """Lo dibujado: rect (x, y, w, h, etiqueta), linea (x1, y1, x2, y2) y texto (x, y, texto, tamanio). Todo en metros,
-    dentro del plano, y el color de una lista fija: el dibujo se arma con estos datos y no admite nada más."""
+TIPOS_RESTRICCION = ("horizontal", "vertical", "paralela", "perpendicular", "igual", "tangente", "puntoEnLinea", "enCirculo",
+                     "medio", "fija")
+TIPOS_COTA = ("largo", "distancia", "dx", "dy", "angulo", "radio", "distpl")
+
+
+def _validar_croquis(d: dict, ancho: float, alto: float) -> dict:
+    """El croquis (frontend/croquis.js): puntos compartidos, entidades que los usan, restricciones y cotas. Se rearma solo
+    con lo conocido: tipos de una lista fija, colores de una lista fija, referencias que existen y números finitos."""
+    def lista(clave, maximo):
+        v = d.get(clave) or []
+        if not isinstance(v, list) or len(v) > maximo or not all(isinstance(x, dict) for x in v):
+            raise ErrorDeNegocio("El dibujo del plano no es válido.")
+        return v
+
+    def ident(x):
+        if not isinstance(x, int) or isinstance(x, bool) or x < 1:
+            raise ErrorDeNegocio("El dibujo del plano no es válido.")
+        return x
+
+    def num(v, minimo, maximo):
+        return _numero_obligatorio(v, "una medida del dibujo", minimo=minimo, maximo=maximo)
+
+    def color(x):
+        c = x.get("color") or "gris"
+        if c not in COLORES_PLANO:
+            raise ErrorDeNegocio("Color no válido en el dibujo.")
+        return c
+
+    puntos = {}
+    for pt in lista("puntos", MAX_ELEMENTOS * 4):
+        puntos[ident(pt.get("id"))] = {"id": pt["id"], "x": num(pt.get("x"), -ancho, 2 * ancho), "y": num(pt.get("y"), -alto, 2 * alto)}
+    def pid(x):
+        if x not in puntos:
+            raise ErrorDeNegocio("El dibujo del plano no es válido (un punto que no existe).")
+        return x
+
+    entidades = {}
+    for e in lista("entidades", MAX_ELEMENTOS):
+        tipo, eid = e.get("tipo"), ident(e.get("id"))
+        base = {"id": eid, "tipo": tipo, "color": color(e)}
+        if tipo == "linea":
+            base.update(a=pid(e.get("a")), b=pid(e.get("b")), constr=bool(e.get("constr")))
+        elif tipo == "rect":
+            esquinas = e.get("p")
+            if not isinstance(esquinas, list) or len(esquinas) != 4 or len(set(esquinas)) != 4:
+                raise ErrorDeNegocio("El dibujo del plano no es válido.")
+            base.update(p=[pid(x) for x in esquinas], etiqueta=_corto(e.get("etiqueta"), 60))
+        elif tipo == "circulo":
+            base.update(c=pid(e.get("c")), r=num(e.get("r"), 0.000001, MAX_LADO_PLANO), etiqueta=_corto(e.get("etiqueta"), 60),
+                        constr=bool(e.get("constr")))
+        elif tipo == "arco":
+            base.update(c=pid(e.get("c")), a=pid(e.get("a")), b=pid(e.get("b")), constr=bool(e.get("constr")))
+        elif tipo == "texto":
+            texto = _corto(e.get("texto"), 80)
+            if not texto:
+                raise ErrorDeNegocio("Un texto del plano está vacío.")
+            base.update(p=pid(e.get("p")), texto=texto,
+                        tamanio=_numero(e.get("tamanio") or 1, "el tamaño del texto", entero=True, minimo=1, maximo=5))
+        else:
+            raise ErrorDeNegocio("El dibujo del plano tiene un elemento desconocido.")
+        entidades[eid] = base
+
+    def refs(x, salida):
+        for k in ("e1", "e2"):
+            if x.get(k) is not None:
+                if x[k] not in entidades:
+                    raise ErrorDeNegocio("El dibujo del plano no es válido (una referencia que no existe).")
+                salida[k] = x[k]
+        for k in ("p1", "p2"):
+            if x.get(k) is not None:
+                salida[k] = pid(x[k])
+        return salida
+
+    restricciones = []
+    for r in lista("restricciones", MAX_ELEMENTOS * 5):
+        if r.get("tipo") not in TIPOS_RESTRICCION:
+            raise ErrorDeNegocio("El dibujo del plano tiene una restricción desconocida.")
+        salida = refs(r, {"id": ident(r.get("id")), "tipo": r["tipo"]})
+        if r["tipo"] == "fija":
+            salida.update(x=num(r.get("x"), -ancho, 2 * ancho), y=num(r.get("y"), -alto, 2 * alto))
+        restricciones.append(salida)
+    cotas = []
+    lado = max(ancho, alto)
+    for k in lista("cotas", MAX_ELEMENTOS * 2):
+        if k.get("tipo") not in TIPOS_COTA:
+            raise ErrorDeNegocio("El dibujo del plano tiene una cota desconocida.")
+        salida = refs(k, {"id": ident(k.get("id")), "tipo": k["tipo"], "valor": num(k.get("valor"), 0, 360 if k["tipo"] == "angulo" else 3 * lado),
+                          "signo": -1 if k.get("signo") == -1 else 1,
+                          "ox": num(k.get("ox") or 0, -lado, lado), "oy": num(k.get("oy") or 0, -lado, lado)})
+        cotas.append(salida)
+    todos = [*puntos, *entidades, *(r["id"] for r in restricciones), *(k["id"] for k in cotas)]
+    sig = d.get("sig")
+    sig = sig if isinstance(sig, int) and not isinstance(sig, bool) and sig > max(todos, default=0) else max(todos, default=0) + 1
+    return {"v": 2, "sig": sig, "puntos": list(puntos.values()), "entidades": list(entidades.values()),
+            "restricciones": restricciones, "cotas": cotas}
+
+
+def _validar_elementos(elementos, ancho: float, alto: float) -> list[dict] | dict:
+    """Lo dibujado. El formato actual es el croquis (un dict con v=2, ver _validar_croquis). El viejo, una lista de
+    rect (x, y, w, h, etiqueta), linea (x1, y1, x2, y2) y texto (x, y, texto, tamanio), se sigue aceptando: la pantalla lo
+    convierte al croquis la próxima vez que se edita. Todo en metros y el color de una lista fija."""
+    if isinstance(elementos, dict) and elementos.get("v") == 2:
+        return _validar_croquis(elementos, ancho, alto)
     if not isinstance(elementos, list):
         raise ErrorDeNegocio("El dibujo del plano no es válido.")
     if len(elementos) > MAX_ELEMENTOS:

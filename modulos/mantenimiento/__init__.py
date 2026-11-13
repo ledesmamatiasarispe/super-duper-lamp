@@ -26,7 +26,7 @@ MODULO = Modulo(
     migrar=esquema.migrar,
     datos_iniciales=esquema.datos_iniciales,
     router=router,
-    scripts=["mantenimiento.js", "mapa.js", "ayuda_mantenimiento.js"],
+    scripts=["mantenimiento.js", "croquis.js", "mapa.js", "ayuda_mantenimiento.js"],
     estilos=["mantenimiento.css", "mapa.css"],
     menu=[Menu("cronograma", "Cronograma", orden=1), Menu("registros", "Registros", orden=2),
           Menu("horometros", "Horómetros", orden=3), Menu("correctivos", "Correctivos", orden=4),

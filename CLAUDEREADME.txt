@@ -170,7 +170,9 @@ La idea en una línea:
   v1.1.0 (sobre el núcleo de appbase: Mantenimiento pasa a ser un módulo; usuarios migrados sin perder nada, se
   entra con el legajo; puerto en Opciones, instancia única, actualizador con copia de la base y vuelta atrás),
   v1.1.1 (cumplido fuera de término: lo hecho en un mes posterior, antes de que vuelva a tocar, cubre el mes atrasado;
-  cuenta como cumplido y se informa aparte el porcentaje a tiempo).
+  cuenta como cumplido y se informa aparte el porcentaje a tiempo),
+  v1.2.0 (Mapa: el dibujo pasa a ser un croquis como el de SolidWorks/Onshape: restricciones, cotas que mandan,
+  grados de libertad, recortar/extender/equidistancia/simetría, zoom, deshacer; núcleo de appbase 1.1.0).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -209,3 +211,21 @@ La idea en una línea:
     Probado sobre una copia de la base real (conteos iguales, foreign_key_check vacío, integrity ok).
   - Lo que antes probaban test_actualizador.py y test_base.py ahora lo prueba appbase (tests del núcleo).
   - Las rutas de la API de usuarios pasan a usar el id (/api/usuarios/{id}) y el login {"usuario", "password"}.
+
+10. MAPA DE PLANTA: EL CROQUIS (v1.2.0, 2026-11-13)
+  Pedido del usuario: que el dibujo tenga las herramientas del modo croquis de SolidWorks u Onshape.
+  - modulos/mantenimiento/frontend/croquis.js es el MOTOR (sin DOM; lo prueban tests/croquis_prueba.js con Node desde
+    tests/test_croquis.py). mapa.js es el editor (pantalla). El formato guardado en planos.elementos es
+    {v: 2, sig, puntos, entidades, restricciones, cotas}; el viejo (lista de rect/linea/texto) se convierte solo al
+    editar (Croquis.convertir) y el servidor acepta los dos (servicios._validar_croquis / _validar_elementos).
+  - Puntos COMPARTIDOS: dos entidades que se tocan usan el mismo id de punto (eso es "coincidente"). Un rectángulo son 4
+    puntos con lados horizontales/verticales implícitos; un arco va de a hacia b (sentido horario en pantalla) con
+    |a-c| = |b-c| implícito; el radio de un círculo es una variable más.
+  - Resolvedor: Levenberg-Marquardt con jacobiano numérico (Croquis.resolver). Al arrastrar, primero acerca los puntos
+    al puntero con peso chico y después cumple todo lo duro. Una restricción o cota que choca se rechaza y el modelo
+    vuelve a como estaba (Croquis.restringir / cambiarCota). Croquis.libertad: forma escalonada del jacobiano -> grados de
+    libertad y qué variables quedan definidas (puntos negros = definidos, azules = libres).
+  - Restricciones automáticas al dibujar (desactivables): el imán reusa puntos (coincidente) y agrega medio / punto sobre
+    línea / sobre círculo; la inferencia agrega horizontal/vertical. Escribir la medida mientras se dibuja crea la cota.
+  - Al enfocar un campo del panel NO se desplaza la página (focus preventScroll y panel con su propio scroll): si no, el
+    dibujo se iba de la vista al poner una cota.

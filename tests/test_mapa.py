@@ -60,3 +60,27 @@ def test_el_punto_muestra_lo_pendiente(api):
         e = eq[t["equipo_codigo"]]
         assert t["tarea_id"] in {p["tarea_id"] for p in e["pendientes"]}
         assert e["estado"] != "al_dia"
+
+
+def test_el_croquis_se_guarda_y_se_valida(api):
+    """El formato del croquis (frontend/croquis.js): puntos, entidades, restricciones y cotas, con referencias que existan."""
+    nave = api.post("/api/planos", json={"nombre": "Croquis", "ancho": 40, "alto": 20}).json()
+    croquis = {"v": 2, "sig": 10, "puntos": [{"id": 1, "x": 0, "y": 0}, {"id": 2, "x": 8, "y": 0}, {"id": 3, "x": 5, "y": 5}],
+               "entidades": [{"id": 4, "tipo": "linea", "a": 1, "b": 2, "color": "azul"},
+                             {"id": 5, "tipo": "circulo", "c": 3, "r": 2, "etiqueta": "Silo", "constr": False},
+                             {"id": 6, "tipo": "texto", "p": 3, "texto": "Nota", "tamanio": 2}],
+               "restricciones": [{"id": 7, "tipo": "horizontal", "e1": 4}, {"id": 8, "tipo": "fija", "p1": 1, "x": 0, "y": 0}],
+               "cotas": [{"id": 9, "tipo": "largo", "e1": 4, "valor": 8, "signo": 1, "ox": 0, "oy": -1}]}
+    def guardar_croquis(elementos):
+        return api.put(f"/api/planos/{nave['id']}", json={"nombre": "Croquis", "ancho": 40, "alto": 20, "elementos": elementos, "equipos": []})
+    assert guardar_croquis(croquis).status_code == 200
+    guardado = next(p for p in api.get("/api/planos").json()["planos"] if p["id"] == nave["id"])["elementos"]
+    assert guardado["v"] == 2 and len(guardado["entidades"]) == 3 and guardado["cotas"][0]["valor"] == 8
+    malo = lambda **cambio: {**croquis, **cambio}  # noqa: E731
+    assert "no existe" in error(guardar_croquis(malo(entidades=[{"id": 4, "tipo": "linea", "a": 1, "b": 99}])))
+    assert "desconocid" in error(guardar_croquis(malo(restricciones=[{"id": 7, "tipo": "magia", "e1": 4}])))
+    assert "Color" in error(guardar_croquis(malo(entidades=[{"id": 4, "tipo": "linea", "a": 1, "b": 2, "color": "url(#x)"}])))
+    assert "no existe" in error(guardar_croquis(malo(cotas=[{"id": 9, "tipo": "largo", "e1": 77, "valor": 8}])))
+    assert "entre" in error(guardar_croquis(malo(puntos=[{"id": 1, "x": 1e9, "y": 0}, {"id": 2, "x": 8, "y": 0}, {"id": 3, "x": 5, "y": 5}])))
+    # el formato viejo (una lista) se sigue aceptando: la pantalla lo convierte al editar
+    assert guardar_croquis([{"tipo": "linea", "x1": 0, "y1": 0, "x2": 5, "y2": 0}]).status_code == 200

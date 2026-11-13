@@ -1,45 +1,83 @@
-/* mapa de planta (mapa.js) */
+/* mapa de planta (mapa.js) y su croquis (croquis.js). Los grosores van en el svg (dependen del zoom). */
 .mapa-pestanas { margin-bottom: .6rem; }
 .mapa-leyenda { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 .6rem; }
-.mapa-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
+.mapa-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
 @media (max-width: 900px) { .mapa-cuerpo { grid-template-columns: minmax(0, 1fr); } }
-.mapa-lienzo { padding: .5rem; }
-#mapa-svg { display: block; width: 100%; height: auto; max-height: 78vh; touch-action: none; user-select: none; }
+.mapa-lienzo { padding: .5rem; position: relative; }
+#mapa-svg { display: block; width: 100%; height: auto; max-height: 78vh; touch-action: none; user-select: none; cursor: grab; }
 #mapa-svg.editando { cursor: crosshair; }
-#mapa-svg.editando.herr-mover { cursor: default; }
-#mapa-svg.editando.herr-mover [data-el], #mapa-svg.editando.herr-mover [data-equipo] { cursor: move; }
+#mapa-svg.editando.herr-seleccionar { cursor: default; }
+#mapa-svg.editando.herr-seleccionar [data-e], #mapa-svg.editando.herr-seleccionar [data-equipo],
+#mapa-svg.editando.herr-seleccionar [data-p], #mapa-svg.editando.herr-seleccionar [data-c] { cursor: move; }
+#mapa-svg.editando.herr-recortar [data-e], #mapa-svg.editando.herr-extender [data-e], #mapa-svg.editando.herr-cota [data-e],
+#mapa-svg.editando.herr-cota [data-p] { cursor: pointer; }
+.mapa-zoom { position: absolute; top: .9rem; right: .9rem; gap: .25rem; }
+.mapa-zoom button { min-width: 2rem; background: rgba(255, 255, 255, .92); }
+/* el panel se desplaza solo, sin mover la página: el dibujo queda siempre a la vista */
+.mapa-lado { position: sticky; top: 4.5rem; max-height: calc(100vh - 5.5rem); overflow-y: auto; }
+@media (max-width: 900px) { .mapa-lado { position: static; max-height: none; } }
 .mapa-lado h3 { margin-top: .8rem; }
 .mapa-lado h3:first-child { margin-top: 0; }
 .mapa-lado label { display: flex; flex-direction: column; gap: .15rem; font-size: .9rem; margin-bottom: .45rem; }
-.mapa-lado .fila-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.mapa-lado label.check { flex-direction: row; align-items: center; margin-bottom: .2rem; }
+.mapa-lado .fila-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; align-items: end; }
 .mapa-herramientas { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; margin-bottom: .5rem; }
+.mapa-herramientas button { padding: .35rem .5rem; font-size: .88rem; }
+.mapa-historial { margin: .3rem 0; }
+.mapa-opciones { margin: .4rem 0; }
 .mapa-ayuda { font-size: .88rem; }
-.mapa-prop { background: var(--gris-claro); border-radius: 8px; padding: .6rem; margin: .4rem 0; }
+.mapa-prop { background: var(--gris-claro); border-radius: 8px; padding: .6rem; margin: .4rem 0; display: flex; flex-direction: column; gap: .35rem; }
+.mapa-sub { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: var(--sutil); margin-top: .3rem; }
+.mapa-restr { list-style: none; padding: 0; margin: 0; font-size: .9rem; }
+.mapa-restr li { display: flex; justify-content: space-between; align-items: center; padding: .1rem 0; }
 .mapa-lista { list-style: none; padding: 0; margin: 0; max-height: 40vh; overflow: auto; }
 .mapa-lista li { display: flex; justify-content: space-between; align-items: center; gap: .4rem; padding: .3rem 0;
   border-bottom: 1px solid var(--borde); font-size: .9rem; }
 
 /* el dibujo */
 .pl-borde { fill: #fff; stroke: var(--texto); }
-.pl-grilla { fill: none; stroke: #c9d2db; }
+.pl-grilla { fill: none; stroke: #dbe2e9; }
 .pl-rect { fill-opacity: .9; }
-.pl-linea { stroke-linecap: round; }
-.pl-tocar { stroke: transparent; stroke-linecap: round; }
+.pl-circulo { fill-opacity: .55; }
+.pl-linea { stroke-linecap: round; fill: none; }
+.pl-tocar { stroke: transparent; stroke-linecap: round; fill: none; }
 .pl-etiqueta { text-anchor: middle; dominant-baseline: central; font-weight: 600; }
 .pl-texto { font-weight: 600; }
-.pl-gris .pl-rect { fill: var(--gris-claro); stroke: var(--sutil); } .pl-gris text { fill: var(--texto); }
-.pl-azul .pl-rect { fill: var(--azul-claro); stroke: var(--azul); }
-.pl-verde .pl-rect { fill: var(--verde-claro); stroke: var(--verde); }
-.pl-ambar .pl-rect { fill: var(--ambar-claro); stroke: var(--ambar); }
-.pl-rojo .pl-rect { fill: var(--rojo-claro); stroke: var(--rojo); }
+.pl-gris .pl-rect, .pl-gris .pl-circulo { fill: var(--gris-claro); stroke: var(--sutil); } .pl-gris text { fill: var(--texto); }
+.pl-azul .pl-rect, .pl-azul .pl-circulo { fill: var(--azul-claro); stroke: var(--azul); }
+.pl-verde .pl-rect, .pl-verde .pl-circulo { fill: var(--verde-claro); stroke: var(--verde); }
+.pl-ambar .pl-rect, .pl-ambar .pl-circulo { fill: var(--ambar-claro); stroke: var(--ambar); }
+.pl-rojo .pl-rect, .pl-rojo .pl-circulo { fill: var(--rojo-claro); stroke: var(--rojo); }
 .pl-gris .pl-linea { stroke: var(--texto); }
 .pl-azul .pl-linea { stroke: var(--azul); } .pl-azul text { fill: var(--azul); }
 .pl-verde .pl-linea { stroke: var(--verde); } .pl-verde text { fill: var(--verde); }
 .pl-ambar .pl-linea { stroke: var(--ambar); } .pl-ambar text { fill: var(--ambar); }
 .pl-rojo .pl-linea { stroke: var(--rojo); } .pl-rojo text { fill: var(--rojo); }
-.sel .pl-rect, .sel .pl-linea { stroke-dasharray: 1 .6; }
+/* construcción: guías punteadas que no se ven en el plano terminado */
+.constr .pl-linea, .constr .pl-circulo { stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; fill: none; opacity: .75; }
+/* lo elegido */
+.sel .pl-rect, .sel .pl-linea, .sel .pl-circulo { stroke: #f39c12 !important; }
 .sel text { text-decoration: underline; }
-.pl-previa { fill: rgba(31, 95, 153, .12); stroke: var(--azul); stroke-dasharray: 1 .6; }
+/* los puntos del croquis: negros si están totalmente definidos, azules si todavía se pueden mover */
+.pl-punto { fill: #fff; stroke: var(--azul); }
+.pl-punto.def { fill: var(--texto); stroke: var(--texto); }
+.pl-punto.sel { fill: #f39c12; stroke: #b9770e; }
+/* cotas */
+.pl-cota line, .pl-cota path { stroke: #5b6b7a; fill: none; }
+.pl-cota .pl-flecha { fill: #5b6b7a; stroke: none; }
+.pl-cota text { text-anchor: middle; dominant-baseline: central; font-weight: 700; fill: #1f5f99; paint-order: stroke; stroke: #fff; cursor: pointer; }
+.pl-cota.sel line, .pl-cota.sel path { stroke: #f39c12; } .pl-cota.sel text { fill: #b9770e; }
+/* restricciones: los íconos */
+.pl-restr rect { fill: #fffbe6; stroke: #c9a227; cursor: pointer; }
+.pl-restr text { text-anchor: middle; dominant-baseline: central; font-weight: 700; fill: #7a5c00; pointer-events: none; }
+.pl-restr.sel rect { fill: #f39c12; }
+/* dibujando: la previa, el imán, las guías, la medida y la caja de selección */
+.pl-previa { fill: rgba(31, 95, 153, .08); stroke: var(--azul); stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.pl-guia { stroke: #8e44ad; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.pl-iman { fill: none; stroke: #e67e22; }
+.pl-medida { fill: var(--azul); font-weight: 700; paint-order: stroke; stroke: #fff; }
+.pl-inferencia { fill: #8e44ad; font-weight: 700; }
+.pl-caja { fill: rgba(243, 156, 18, .08); stroke: #f39c12; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 
 /* las máquinas */
 .mapa-punto { cursor: pointer; }
@@ -47,8 +85,8 @@
 .mapa-punto text { text-anchor: middle; font-weight: 700; fill: var(--texto); paint-order: stroke; stroke: #fff; }
 .punto-rojo circle { fill: var(--rojo); } .punto-ambar circle { fill: var(--ambar); }
 .punto-azul circle { fill: var(--azul); } .punto-verde circle { fill: var(--verde); }
-.mapa-punto.sel circle { stroke: var(--texto); stroke-dasharray: .6 .4; }
+.mapa-punto.sel circle { stroke: #f39c12; }
 @media print {
-  .mapa-lado, .mapa-pestanas .botones { display: none; }
+  .mapa-lado, .mapa-pestanas .botones, .mapa-zoom { display: none; }
   .mapa-cuerpo { grid-template-columns: 1fr; }
 }

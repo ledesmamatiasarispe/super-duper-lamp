@@ -20,6 +20,9 @@ Qué trae:
   modulo       el contrato de un módulo (esquema, rutas, pantallas, menú, ayuda)
   aplicacion   crear_app(modulos) -> la app FastAPI con todo lo anterior y los módulos enchufados
   arranque     correr(app): el python -m app / el .exe
+  chequeo      pantallas(modulos): carga los scripts sin navegador y detecta nombres repetidos y errores al cargar
+  contrato     lo que el núcleo ofrece a los módulos (docs/contrato.json): sacarlo o cambiarlo es un núcleo 2.0
+  intacto      ¿la copia del núcleo de una app es la de appbase? (MANIFIESTO.json)
 
 Uso mínimo (ver app/ en appbase, la app de ejemplo):
     import nucleo
@@ -30,4 +33,4 @@ Uso mínimo (ver app/ en appbase, la app de ejemplo):
 """
 from .ajustes import configurar  # noqa: F401
 
-VERSION_NUCLEO = "1.0.1"
+VERSION_NUCLEO = "1.1.0"
