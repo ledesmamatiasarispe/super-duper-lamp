@@ -7,8 +7,8 @@ se cometieron una vez. Si cambiás algo de lo que dice acá, actualizalo en el m
 
 1. QUÉ ES
 ---------
-UltraMantenimiento (logo: omega invertida ℧ blanca, estilo Ultramarines, sobre azul #17324d; frontend/logo.svg e icono.svg, y el .ico del exe
-en herramientas/ultramantenimiento.ico, generado por herramientas/icono.py con la misma geometría).
+UltraMantenimiento (logo: omega invertida ℧ blanca, estilo Ultramarines, sobre azul #17324d; app/frontend/icono.svg, y el .ico
+del exe en herramientas/icono.ico, generado por herramientas/icono.py con la misma geometría).
 App web de MANTENIMIENTO PREVENTIVO y correctivo de una planta (Fundición Romero). Reemplaza una planilla Excel
 de cronograma. La usan administradores (configuran) y usuarios de mantenimiento (registran trabajos), desde PCs y
 tablets de planta en la red local. Todo en español rioplatense (textos, código, nombres).
@@ -18,45 +18,55 @@ La idea en una línea:
   -> Cronograma / Horómetros -> Registros (lo hecho) -> cumplimiento.
 
 
-2. STACK Y ESTRUCTURA
+2. STACK Y ESTRUCTURA (desde 1.1.0: SOBRE EL NÚCLEO DE APPBASE)
 ---------------------
 - Python 3.11, FastAPI, sqlite3 directo (sin ORM), PRAGMA foreign_keys ON. Frontend: SPA en JavaScript puro,
-  sin build ni frameworks (index.html + app.js + styles.css; ayuda.js/ayuda.css aparte).
+  sin build ni frameworks.
+- La app está hecha sobre el NÚCLEO de github.com/ledesmamatiasarispe/appbase (sesión, usuarios, Opciones, nombre y
+  logo, puerto, actualizador, la página, la Ayuda/Tour). nucleo/ NO SE MODIFICA ACÁ: un cambio del núcleo se hace en
+  appbase y se trae con `python herramientas/sincronizar.py <esta carpeta> --llevar` (desde appbase).
+  tests/test_nucleo_intacto.py falla si alguien lo tocó a mano. Todo lo de mantenimiento es el MÓDULO
+  modulos/mantenimiento (ver appbase/README.md: contrato de módulo; una fusión con otra app = sumar sus módulos).
 - Entorno: .venv en la raíz. Arrancar: `.venv\Scripts\python.exe -m app` (o iniciar.bat) -> http://localhost:8095
-  (escucha en 0.0.0.0 para las tablets). MANT_PUERTO cambia el puerto, MANT_DB la base, MANT_NAVEGADOR=0 no abre
-  el navegador en la versión compilada.
+  (escucha en 0.0.0.0 para las tablets). MANT_PUERTO fija el puerto (si no, el de Opciones), MANT_DB la base,
+  MANT_NAVEGADOR=0 no abre el navegador en la versión compilada. Si la app ya está abierta, abrirla de nuevo solo abre
+  el navegador; si el puerto lo usa otro programa, arranca en el siguiente libre.
 
   app/
-    __main__.py     arranque (uvicorn con el objeto app; compilado abre el navegador)
-    main.py         rutas HTTP. DELGADAS: pasan el body (dict) crudo al servicio, sin lógica.
-    servicios.py    ÚNICA puerta a los datos y a las reglas. Cada caso de uso = una transacción (`with transaccion()`).
-                    Errores: ErrorDeNegocio -> 400, NoEncontrado -> 404 (los traduce main.py).
-    db.py           esquema (ESQUEMA, CREATE IF NOT EXISTS), migraciones livianas (_agregar_columnas con
-                    PRAGMA table_info, _migrar_areas…), datos de ejemplo. ROOT/data: en desarrollo la raíz del
-                    proyecto; COMPILADA, la carpeta del .exe (ver punto 6).
-    auth.py         sesiones con token Bearer (tabla sesiones), hash PBKDF2. auth.sesion vs auth.usuario_actual
-                    (hoy equivalentes: la contraseña provisoria, debe_cambiar=1, NO bloquea; /api/auth/yo la
-                    informa y el frontend muestra un banner amarillo hasta que se cambie en Opciones). solo_admin.
-    usuarios.py     alta/baja de usuarios; siempre queda un admin activo; nadie se da de baja a sí mismo;
-                    cada usuario tiene su ficha en personas (Mantenimiento interno).
+    version.py      la identidad: VERSION, APP, NOMBRE, PREFIJO (MANT), PUERTO, REPO, LOGIN ("Legajo"), BASE.
+    main.py         nucleo.configurar(...) + crear_app([mantenimiento.MODULO]).
+    __main__.py     nucleo.arranque.correr(app).
+    frontend/icono.svg   el ícono de fábrica (omega invertida); se reemplaza desde Opciones > Nombre y logo.
+  nucleo/           EL NÚCLEO (copia de appbase, intacta). Lo que antes eran app/auth.py, usuarios.py, db.py
+                    (conexión y transacciones), actualizador.py, marca.py, puerto.py, la página, la sesión, Opciones
+                    y Usuarios en el frontend, y el motor de ayuda.js.
+  modulos/mantenimiento/
+    __init__.py     MODULO: esquema, migrar, datos_iniciales, router, scripts, estilos, menú, al_iniciar.
+    esquema.py      las tablas de mantenimiento (usuarios, sesiones y config son del núcleo), migrar() (columnas
+                    nuevas, _migrar_areas, y _migrar_usuarios_al_nucleo: la migración de 1.0.x, ver punto 7) y los
+                    datos de ejemplo (solo en una base sin equipos).
+    servicios.py    ÚNICA puerta a los datos y a las reglas. Cada caso de uso = una transacción (`with transaccion()`,
+                    de nucleo.db). Errores: ErrorDeNegocio -> 400, NoEncontrado -> 404 (de nucleo.errores; los
+                    traduce el núcleo).
     calendario.py   lógica pura del cronograma: frecuencias, estado de cada mes, servicios por horas.
-    actualizador.py auto-actualización desde GitHub Releases (punto 6).
-    version.py      VERSION y REPO.
-  frontend/
-    app.js          todas las pantallas: VISTAS.<nombre> = async () => {...}; navegación con irA('vista/param')
-                    (usa history.replaceState). Helpers: api(), $(), esc(), abrirModal(), enviar(form, fn), avisar().
-    ayuda.js        botón "Ayuda" (recorrido por pantalla) y "Tour completo" (toda la app). Pasos por pantalla en
-                    PASOS; cada paso busca su elemento EN EL MOMENTO (por texto de botón o clase): si cambiás el texto
-                    de un botón, revisá ayuda.js o ese paso desaparece sin error.
+    rutas.py        APIRouter. DELGADAS: pasan el body (dict) crudo al servicio, sin lógica.
+    personal_usuarios.py  cada usuario tiene su ficha en Personal: se engancha en nucleo.usuarios.AL_GUARDAR.
+                    personas.usuario_legajo guarda el id del usuario (que en las bases de 1.0.x es su legajo).
+    frontend/       mantenimiento.js (todas las pantallas: VISTAS.<nombre>; usa api(), $(), esc(), abrirModal(),
+                    enviar(), avisar() del núcleo), mapa.js, ayuda_mantenimiento.js (los pasos de la Ayuda y del Tour,
+                    registrados en Ayuda.pasos / Ayuda.tour: si cambiás el texto de un botón, revisá ese paso),
+                    mantenimiento.css, mapa.css.
   herramientas/
-    compilar.py               PyInstaller onedir -> dist/UltraMantenimiento/ + .zip + .sha256
-    icono.py                  genera ultramantenimiento.ico (sin librerías de imágenes)
+    compilar.py               el de appbase: PyInstaller onedir -> dist/UltraMantenimiento/ + .zip + .sha256
+    icono.py                  genera icono.ico (sin librerías de imágenes)
     instructivo_ejemplo.py    crea el instructivo "EJEMPLO · Bomba centrífuga" (usa todas las herramientas del editor)
     cargar_fichas.py          carga las fichas originales .xls (equipos EQ-001…028 + instructivos IT01…IT26); necesita
                               xlrd (requirements-dev). Tiene --simular. Equipos/áreas/responsables salen de una tabla
                               armada con CronogramaMantenimiento-2027.xlsm (los encabezados de varias fichas están mal).
-  tests/            pytest con TestClient contra una base nueva por test (fixture `api` en test_api.py, admin logueado).
-                    conftest.py pone MANT_REPO="" para que los tests no salgan a internet.
+  tests/            pytest con TestClient contra una base nueva por test (fixture `api` en test_api.py, admin logueado
+                    con usuario "admin"). conftest.py pone MANT_REPO="" y MANT_DB en una carpeta temporal, e importa
+                    app.main ANTES de los tests (configurar() fija db.DB_PATH: importado después, pisaría la ruta
+                    de prueba con la base real).
   .github/workflows/release.yml   al empujar un tag v*: tests + compilar + publicar el release.
 
 
@@ -151,7 +161,9 @@ La idea en una línea:
   v1.0.6 (cambio de horómetro en Horómetros: tramos de lecturas y próximos corridos al horómetro nuevo; el
   cumplimiento del año no cuenta los meses anteriores al alta de la tarea),
   v1.0.7 (Mapa de planta: planos dibujados con las máquinas como puntos coloreados por su estado; nombre y logo de la
-  app en Opciones; la contraseña provisoria ya no bloquea: banner amarillo hasta cambiarla en Opciones).
+  app en Opciones; la contraseña provisoria ya no bloquea: banner amarillo hasta cambiarla en Opciones),
+  v1.1.0 (sobre el núcleo de appbase: Mantenimiento pasa a ser un módulo; usuarios migrados sin perder nada, se
+  entra con el legajo; puerto en Opciones, instancia única, actualizador con copia de la base y vuelta atrás).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -177,26 +189,16 @@ La idea en una línea:
 - Copias de seguridad tomadas antes de cada migración, en data/: mantenimiento_antes_de_orden.db,
   mantenimiento_antes_de_separar_instructivos.db, mantenimiento_antes_de_ejemplo.db.
 
-8. BASE COMÚN CON LAS OTRAS DOS APPS (2026-11-13)
-  UltraMantenimiento, Gestión Automotor APB y Edificios de Mamá comparten la base (FastAPI + SQLite + JS sin
-  framework). Para que una mejora pase de una a otra copiando archivos, lo común vive en archivos IDÉNTICOS en las tres;
-  lo propio de cada app sale de app/version.py (APP = identificador fijo, NOMBRE = nombre de fábrica, PREFIJO de las
-  variables de entorno, PUERTO de fábrica, VERSION, REPO).
-  - app/marca.py: nombre y logo de la página (config marca_nombre / marca_logo, logo en data/marca/).
-  - app/puerto.py: puerto elegido en la pantalla de ajustes (config "puerto"; <PREFIJO>_PUERTO lo fija). Al arrancar:
-    si el elegido lo usa otro programa, el siguiente libre; si lo usa esta misma app, solo se abre el navegador
-    (se pregunta /api/version, que contesta "app").
-  - app/rutas_base.py: "/" (index.html con ?v=VERSION, nombre y logo), /api/version, /api/marca*, /api/puerto.
-  - frontend/comun.js + comun.css: banner de contraseña provisoria (ya NO bloquea: auth.usuario_actual deja pasar),
-    modalPassword y las tarjetas Contraseña, Puerto y Nombre y logo. Cada app define PANTALLA_AJUSTES en app.js
-    (Opciones, o Administración en Edificios de Mamá).
-  - tests/test_base.py: los tests de todo eso.
-  - Iguales en lógica (no en archivo): db.transaccion() con BEGIN IMMEDIATE, busy_timeout y SAVEPOINT (reentrante;
-    executescript va fuera de la transacción porque confirma solo); el actualizador (certificados del sistema + certifi,
-    copia de la base con la API de backup antes de instalar —quedan las últimas 3—, y el .bat de Windows guarda el
-    programa en data/actualizacion/anterior y lo vuelve a poner si robocopy falla). UltraMantenimiento y Gestión
-    Automotor comparten app/actualizador.py idéntico; Edificios de Mamá tiene el suyo (también instala desde el código
-    fuente y en Linux/Mac).
-  Al cambiar uno de estos archivos en una app, copiarlo a las otras dos y correr tests/test_base.py en las tres.
-  Pendiente (tanda 2, no hecha): importar datos de otra instalación (hoy solo Gestión Automotor), Ayuda/Tour en
-  Edificios de Mamá, chequeo de pasos huérfanos en las tres, historial de cambios, mail semanal.
+8. BASE COMÚN CON LAS OTRAS DOS APPS
+  Reemplazado por el núcleo de appbase (punto 2 y punto 9): lo común ya no se copia archivo por archivo, vive en
+  nucleo/ y se trae con herramientas/sincronizar.py de appbase. Las herramientas propias de cada app que pueden servir
+  a otra (el mapa de planta, el horómetro por tramos...) están como referencia en appbase/ejemplos/.
+
+9. PASO AL NÚCLEO DE APPBASE (v1.1.0, 2026-11-13)
+  Primera app migrada al núcleo; la receta para las otras está en appbase/docs/migrar_una_app.md.
+  - Usuarios: la tabla vieja usuarios(legajo, ...) pasa al esquema del núcleo con RENAME COLUMN legajo -> id (actualiza
+    las FK de personas y sesiones) + usuario = el legajo como texto. Se entra con el legajo como siempre, las
+    contraseñas y las sesiones abiertas siguen. Antes copia la base: data/mantenimiento_antes_del_nucleo.db.
+    Probado sobre una copia de la base real (conteos iguales, foreign_key_check vacío, integrity ok).
+  - Lo que antes probaban test_actualizador.py y test_base.py ahora lo prueba appbase (tests del núcleo).
+  - Las rutas de la API de usuarios pasan a usar el id (/api/usuarios/{id}) y el login {"usuario", "password"}.

@@ -15,8 +15,14 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RAIZ))
 
-from app import servicios as sv  # noqa: E402
-from app.db import inicializar, transaccion  # noqa: E402
+import app.main  # noqa: E402,F401  (configura el núcleo: la base es la de MANT_DB o data/mantenimiento.db)
+from modulos.mantenimiento import servicios as sv  # noqa: E402
+from nucleo.db import transaccion  # noqa: E402
+
+
+def inicializar(con_ejemplos: bool = True) -> None:
+    from nucleo.db import inicializar as _inicializar
+    _inicializar(app.main.MODULOS, con_ejemplos=con_ejemplos)
 
 TITULO = "EJEMPLO · Bomba centrífuga de agua de refrigeración"
 ARCHIVOS = RAIZ / "herramientas" / "ejemplo"

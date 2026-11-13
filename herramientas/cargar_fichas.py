@@ -27,8 +27,14 @@ sys.path.insert(0, str(RAIZ))
 
 import xlrd  # noqa: E402
 
-from app import servicios as sv  # noqa: E402
-from app.db import inicializar, transaccion  # noqa: E402
+import app.main  # noqa: E402,F401  (configura el núcleo: la base es la de MANT_DB o data/mantenimiento.db)
+from modulos.mantenimiento import servicios as sv  # noqa: E402
+from nucleo.db import transaccion  # noqa: E402
+
+
+def inicializar(con_ejemplos: bool = True) -> None:
+    from nucleo.db import inicializar as _inicializar
+    _inicializar(app.main.MODULOS, con_ejemplos=con_ejemplos)
 
 USUARIO = {"nombre": "Carga de fichas originales"}
 TITULO_EJEMPLO = "EJEMPLO · Bomba centrífuga de agua de refrigeración"

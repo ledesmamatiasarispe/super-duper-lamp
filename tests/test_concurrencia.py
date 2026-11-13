@@ -3,7 +3,8 @@ valida leyendo no lo invalida otro entre la lectura y la escritura. Mismo test q
 import threading
 import time
 
-from app import db, servicios as sv
+from modulos.mantenimiento import servicios as sv
+from nucleo import db
 from tests.test_api import HOY, api  # noqa: F401  (fixture con el admin ya logueado)
 
 

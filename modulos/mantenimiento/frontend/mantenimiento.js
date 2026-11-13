@@ -1,69 +1,12 @@
 'use strict';
-// Pantalla única: cada vista pide sus datos a la API y se dibuja en #vista. Sin lógica de negocio acá:
-// lo que se valida, lo valida el servidor y su mensaje se muestra tal cual.
+// ── Módulo MANTENIMIENTO (pantallas) ──
+// Se carga después de nucleo.js y ayuda.js (el núcleo): usa sus utilidades (api, abrirModal, enviar, esc, irA, S...) y
+// registra lo suyo: las pantallas en VISTAS, lo que carga al entrar en Nucleo.alEntrar, la tarjeta "Plan de
+// mantenimiento" en Opciones y la pestaña que marca un instructivo. Sin lógica de negocio acá: valida el servidor.
 
-const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-/** La pantalla donde comun.js pone Contraseña, Puerto y Nombre y logo. */
-const PANTALLA_AJUSTES = { vista: 'opciones', titulo: 'Opciones' };
-const S = { token: null, usuario: null, opciones: null, tareas: [], anio: new Date().getFullYear() };
+S.opciones = null; S.tareas = []; S.anio = new Date().getFullYear();
+Nucleo.pestanas.instructivos = 'equipos';   // un instructivo se abre desde Equipos e instructivos
 
-// ── utilidades ──
-const $ = (sel, raiz = document) => raiz.querySelector(sel);
-const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const hoyISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
-const fecha = iso => iso ? iso.slice(0, 10).split('-').reverse().join('/') : '';
-const miles = n => n == null ? '—' : Number(n).toLocaleString('es-AR');
-const leerToken = () => { try { return localStorage.getItem('mant_token'); } catch { return null; } };
-const guardarToken = t => { try { t ? localStorage.setItem('mant_token', t) : localStorage.removeItem('mant_token'); } catch { /* sin almacenamiento */ } };
-
-async function api(ruta, { metodo = 'GET', datos, formulario } = {}) {
-  const opts = { method: metodo, headers: {} };
-  if (S.token) opts.headers.Authorization = 'Bearer ' + S.token;
-  if (datos !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(datos); }
-  if (formulario) opts.body = formulario;   // FormData (archivos): el navegador pone el Content-Type con su separador
-  const r = await fetch(ruta, opts);
-  if (r.status === 401 && !ruta.endsWith('/login')) { salir(); throw new Error('La sesión venció: iniciar sesión de nuevo.'); }
-  const cuerpo = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(typeof cuerpo.detail === 'string' ? cuerpo.detail : 'No se pudo completar la operación.');
-  return cuerpo;
-}
-
-let _avisoTimer;
-function avisar(texto, mal = false) {
-  const a = $('#aviso');
-  a.textContent = texto; a.classList.toggle('mal', mal); a.classList.remove('oculto');
-  clearTimeout(_avisoTimer); _avisoTimer = setTimeout(() => a.classList.add('oculto'), mal ? 6000 : 3000);
-}
-
-function abrirModal(html, grande = false) {
-  $('#modal-cuerpo').innerHTML = html; $('#modal').classList.toggle('grande', grande); $('#modal').showModal();
-}
-function cerrarModal() { $('#modal').close(); }
-
-/** Lee un formulario a un objeto: los checkbox dan true/false, el resto texto crudo (lo valida el servidor). */
-function leerForm(form) {
-  const d = {};
-  for (const el of form.elements) {
-    if (!el.name) continue;
-    d[el.name] = el.type === 'checkbox' ? el.checked : el.value;
-  }
-  return d;
-}
-
-/** Envía un formulario: muestra el error del servidor en el propio formulario y no lo cierra. */
-async function enviar(form, accion) {
-  const err = $('.error', form), boton = $('button[type=submit], button.primario', form);
-  if (err) err.textContent = '';
-  if (boton) boton.disabled = true;
-  try { await accion(leerForm(form)); }
-  catch (e) { if (err) err.textContent = e.message; else avisar(e.message, true); }
-  finally { if (boton) boton.disabled = false; }
-}
-
-const opcionesSelect = (lista, valor, vacio = '') =>
-  (vacio !== null ? `<option value="">${esc(vacio)}</option>` : '') +
-  lista.map(([v, t]) => `<option value="${esc(v)}" ${String(v) === String(valor ?? '') ? 'selected' : ''}>${esc(t)}</option>`).join('');
 const CATEGORIAS = { interno: 'Mantenimiento interno', externo: 'Proveedor externo' };
 /** Personas agrupadas por categoría. modo 'trabajo': la genérica es "Otro (escribir nombre)";
  *  modo 'general' (responsable de una tarea, quién anotó): es la categoría en general. */
@@ -80,7 +23,7 @@ function personasSelect(valor, vacio = '— elegir —', modo = 'trabajo') {
 }
 
 /** La ficha de Personal del usuario que está usando el sistema: lo más común es registrar lo que hizo uno. */
-const miFicha = () => S.opciones.personas.find(p => p.usuario_legajo === S.usuario.legajo && p.activo);
+const miFicha = () => S.opciones.personas.find(p => p.usuario_legajo === S.usuario.id && p.activo);
 
 /** Si la persona elegida es genérica ("Mantenimiento interno"), muestra la casilla para escribir quién fue. */
 function casillaNombre(f) {
@@ -95,91 +38,6 @@ function casillaNombre(f) {
 
 async function recargarOpciones() {
   [S.opciones, S.tareas] = await Promise.all([api('/api/opciones'), api('/api/tareas')]);
-}
-
-// ── sesión ──
-async function entrar() {
-  try { S.usuario = await api('/api/auth/yo'); } catch { return mostrarLogin(); }
-  $('#login').classList.add('oculto'); $('#app').classList.remove('oculto');
-  $('#usuario-nombre').textContent = S.usuario.nombre;
-  document.querySelectorAll('.solo-admin').forEach(el => el.classList.toggle('oculto', !S.usuario.es_admin));
-  bannerPassword();   // con una contraseña provisoria se puede usar todo, pero queda el aviso hasta cambiarla
-  try { await recargarOpciones(); } catch (e) { return avisar(e.message, true); }
-  irA(location.hash.slice(1) || 'inicio');
-  if (S.usuario.es_admin) preguntarActualizacion();
-}
-
-/** Al entrar un administrador: si hay una versión nueva (y no se pospuso), se pregunta si se instala. */
-async function preguntarActualizacion() {
-  let a;
-  try { a = await api('/api/actualizacion'); } catch { return; }   // sin respuesta, se pregunta la próxima vez
-  if (!a.preguntar) return;
-  abrirModal(`<h2>Hay una versión nueva</h2>
-    <p>Está disponible la versión <b>${esc(a.nueva)}</b> (la instalada es la ${esc(a.version)}). ¿Querés actualizar ahora?</p>
-    ${a.notas ? `<div class="notas-version">${esc(a.notas)}</div>` : ''}
-    <p class="sutil">La app se cierra y vuelve a abrir sola en menos de un minuto: avisá a quien la esté usando. Los datos no se tocan.</p>
-    <p class="error"></p>
-    <div class="botones"><button class="primario" id="act-si" ${a.instalable ? '' : 'disabled'}>Actualizar ahora</button>
-      <button id="act-no">Ahora no (preguntar en una semana)</button></div>
-    ${a.instalable ? '' : '<p class="sutil">Este release no trae el instalable: hay que actualizar a mano.</p>'}`);
-  $('#act-no').addEventListener('click', async () => {
-    try { const r = await api('/api/actualizacion/posponer', { metodo: 'POST' }); cerrarModal(); avisar(`No se vuelve a preguntar hasta el ${fecha(r.pospuesta_hasta)}. Se puede actualizar antes desde Opciones.`); }
-    catch (e) { $('#modal .error').textContent = e.message; }
-  });
-  $('#act-si').addEventListener('click', () => instalarActualizacion());
-}
-
-/** Instala y espera a que la app vuelva con la versión nueva; entonces recarga la página. */
-async function instalarActualizacion() {
-  const antes = (await api('/api/version').catch(() => ({}))).version;
-  abrirModal(`<h2>Actualizando…</h2><p>Bajando la versión nueva. Después la app se cierra y vuelve a abrir sola: esta página se recarga cuando esté lista.</p>
-    <p class="error"></p>`);
-  try { await api('/api/actualizacion/instalar', { metodo: 'POST' }); }
-  catch (e) { $('#modal .error').textContent = e.message; $('#modal-cuerpo').insertAdjacentHTML('beforeend', '<div class="botones"><button onclick="cerrarModal()">Cerrar</button></div>'); return; }
-  const inicio = Date.now();
-  const esperar = async () => {
-    try {
-      const r = await fetch('/api/version');
-      if (r.ok && (await r.json()).version !== antes) return location.reload();
-    } catch { /* todavía reiniciando */ }
-    if (Date.now() - inicio > 5 * 60 * 1000) {
-      $('#modal .error').textContent = 'La app tarda en volver. Si no abre, iniciala de nuevo: el detalle queda en data\\actualizacion.log.';
-      return;
-    }
-    setTimeout(esperar, 2000);
-  };
-  setTimeout(esperar, 3000);
-}
-
-// ── OPCIONES ── (se entra desde la barra, al lado de "Cambiar contraseña"; acá se irán sumando más opciones).
-// Es una función declarada (se registra en VISTAS más abajo, donde se crea): un "VISTAS.x =" acá cortaría la carga.
-async function vistaOpciones() {
-  const [a, base] = await Promise.all([api('/api/actualizacion'), tarjetasBase()]);
-  const admin = S.usuario.es_admin;
-  let estado;
-  if (!a.repo) estado = '<p class="sutil">Todavía no hay un repositorio de actualizaciones configurado.</p>';
-  else if (a.error) estado = `<p class="error">${esc(a.error)}</p>`;
-  else if (a.disponible) estado = `<p>Hay una versión nueva: <b>${esc(a.nueva)}</b>${a.url_release ? ` · <a href="${esc(a.url_release)}" target="_blank" rel="noopener">ver en GitHub</a>` : ''}</p>
-    ${a.notas ? `<div class="notas-version">${esc(a.notas)}</div>` : ''}
-    ${a.pospuesta_hasta ? `<p class="sutil">Se pospuso: al entrar no se vuelve a preguntar hasta el ${fecha(a.pospuesta_hasta)}.</p>` : ''}
-    ${admin ? (a.compilada ? (a.instalable ? '<button class="primario" onclick="instalarActualizacion()">Actualizar ahora</button>'
-      : '<p class="sutil">Este release no trae el instalable (.zip y .sha256): hay que actualizar a mano.</p>')
-      : '<p class="sutil">Esta es la versión de desarrollo: se actualiza con git, no desde acá.</p>') : '<p class="sutil">La instala un administrador.</p>'}`;
-  else estado = `<p>Estás usando la última versión.</p>`;
-  $('#vista').innerHTML = `
-    <div class="encabezado"><h2>Opciones</h2></div>
-    <div class="tarjeta" id="op-version"><h3>Versión y actualizaciones</h3>
-      <p>Versión instalada: <b>${esc(a.version)}</b>${a.compilada ? '' : ' <span class="chip">desarrollo</span>'}</p>
-      ${estado}
-      ${a.repo ? `<p class="sutil">Se busca en GitHub (${esc(a.repo)}) cada vez que arranca la app${a.buscado_en ? ' · última búsqueda: ' + esc(a.buscado_en) : ''}.</p>` : ''}
-      ${admin && a.repo ? '<button onclick="buscarActualizacion(this)">Buscar ahora</button>' : ''}</div>
-    ${base}
-    ${admin ? `<div class="tarjeta" id="op-plan"><h3>Plan de mantenimiento</h3>
-      <p class="sutil">Programa de una vez todas las secciones de instructivos que los equipos todavía no tienen en el Plan.
-        La frecuencia viene sugerida por la tabla «Frecuencias» de cada instructivo; antes de guardar se revisa y se corrige.</p>
-      <button class="primario" onclick="modalProgramarTodos()">Programar todos</button></div>` : ''}
-    <div class="tarjeta"><h3>Próximamente</h3><p class="sutil">Acá se van a ir sumando opciones para ajustar la app a cada uno.</p></div>`;
-  activarTarjetasBase();
 }
 
 /** "Programar todos": lista lo que falta en el Plan con la frecuencia sugerida, editable, y lo guarda todo junto. */
@@ -289,65 +147,6 @@ function repartirMeses(f, filas) {
   avisar(porMes.length ? `Se repartieron ${porMes.length} meses de inicio. Se pueden retocar a mano antes de guardar.`
     : 'No hay filas marcadas con frecuencia por meses para repartir.');
 }
-
-async function buscarActualizacion(boton) {
-  boton.disabled = true; boton.textContent = 'Buscando…';
-  try { await api('/api/actualizacion/buscar', { metodo: 'POST' }); irA('opciones'); }
-  catch (e) { avisar(e.message, true); boton.disabled = false; boton.textContent = 'Buscar ahora'; }
-}
-
-/** Banner amarillo, en todas las vistas, mientras el usuario siga con una contraseña provisoria
- *  (la de fábrica o la que puso un administrador). No bloquea nada: se va al cambiarla. */
-$('#mi-password').addEventListener('click', () => modalPassword());
-$('#mis-opciones').addEventListener('click', () => irA('opciones'));
-
-function mostrarLogin() { $('#app').classList.add('oculto'); $('#login').classList.remove('oculto'); $('input[name=legajo]').focus(); }
-
-function salir() {
-  if (S.token) fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + S.token } }).catch(() => {});
-  S.token = null; guardarToken(null); quitarBannerPassword(); mostrarLogin();
-}
-
-$('#form-login').addEventListener('submit', async ev => {
-  ev.preventDefault();
-  $('#login-error').textContent = '';
-  try {
-    const r = await api('/api/auth/login', { metodo: 'POST', datos: leerForm(ev.target) });
-    S.token = r.token; guardarToken(r.token); ev.target.reset(); entrar();
-  } catch (e) { $('#login-error').textContent = e.message; }
-});
-$('#salir').addEventListener('click', salir);
-
-// ── navegación ──
-const VISTAS = {};
-VISTAS.opciones = vistaOpciones;
-function irA(nombre) {
-  const [vista, param] = nombre.split('/');
-  if (!VISTAS[vista]) return irA('inicio');
-  if (location.hash.slice(1) !== nombre) history.replaceState(null, '', '#' + nombre);
-  const pestana = vista === 'instructivos' ? 'equipos' : vista;   // un instructivo se abre desde Equipos e instructivos
-  document.querySelectorAll('#menu a').forEach(a => a.classList.toggle('activo', a.dataset.vista === pestana));
-  $('#vista').innerHTML = '<p class="sutil">Cargando…</p>';
-  VISTAS[vista](param).catch(e => { $('#vista').innerHTML = `<p class="error">${esc(e.message)}</p>`; });
-}
-$('#menu').addEventListener('click', ev => { if (ev.target.dataset.vista) irA(ev.target.dataset.vista); });
-window.addEventListener('hashchange', () => S.usuario && irA(location.hash.slice(1)));
-const soloAdmin = html => S.usuario?.es_admin ? html : '';
-
-// Lo dado de baja u obsoleto (filas tr.baja) no se muestra salvo que se marque "Ver ocultos" en esa tabla.
-// La elección se recuerda por tabla mientras se navega.
-S.verOcultos = {};
-function casillaOcultos(clave, cantidad) {
-  return `<label class="check ver-ocultos"><input type="checkbox" data-ocultos="${clave}" ${S.verOcultos[clave] ? 'checked' : ''}>
-    Ver ocultos (${cantidad})</label>`;
-}
-const tablaOcultos = clave => `data-ocultos-tabla="${clave}" class="${S.verOcultos[clave] ? 'mostrar-ocultos' : ''}"`;
-document.addEventListener('change', ev => {
-  const clave = ev.target.dataset?.ocultos;
-  if (!clave) return;
-  S.verOcultos[clave] = ev.target.checked;
-  document.querySelectorAll(`[data-ocultos-tabla="${clave}"]`).forEach(t => t.classList.toggle('mostrar-ocultos', ev.target.checked));
-});
 
 // ── registrar un mantenimiento (desde inicio, cronograma o registros) ──
 async function modalRegistro(tareaId, fechaSugerida) {
@@ -1042,69 +841,6 @@ async function eliminarArea(id) {
   catch (e) { avisar(e.message, true); }
 }
 
-// ── USUARIOS (solo administradores) ──
-VISTAS.usuarios = async () => {
-  if (!S.usuario.es_admin) return irA('inicio');
-  const lista = await api('/api/usuarios');
-  $('#vista').innerHTML = `
-    <div class="encabezado"><h2>Usuarios</h2><div class="botones"><button class="primario" onclick="modalUsuario()">Nuevo usuario</button></div></div>
-    <p class="sutil">Quiénes entran al sistema. Un <b>usuario</b> ve todo y registra trabajos; un <b>administrador</b> además configura
-      (equipos, instructivos, Plan, personal) y maneja los usuarios. Siempre tiene que quedar al menos un administrador activo.</p>
-    <div class="tarjeta tabla-wrap">${casillaOcultos('usuarios', lista.filter(u => !u.activo).length)}<table ${tablaOcultos('usuarios')}><thead><tr><th>Legajo</th><th>Nombre</th><th>Rol</th><th>Estado</th><th></th></tr></thead><tbody>
-      ${lista.map(u => `<tr class="${u.activo ? '' : 'baja'}"><td><b>${u.legajo}</b></td><td>${esc(u.nombre)}${u.legajo === S.usuario.legajo ? ' <span class="sutil">(vos)</span>' : ''}</td>
-        <td>${u.es_admin ? '<span class="chip azul">Administrador</span>' : '<span class="chip">Usuario</span>'}</td>
-        <td>${u.activo ? (u.debe_cambiar ? '<span class="chip ambar">Contraseña provisoria</span>' : '<span class="chip verde">Activo</span>') : '<span class="chip rojo">De baja</span>'}</td>
-        <td class="botones"><button class="chico" onclick="modalUsuario(${u.legajo})">Editar</button>
-          ${u.legajo !== S.usuario.legajo ? `<button class="chico" onclick="modalRestablecer(${u.legajo})">Restablecer contraseña</button>
-          <button class="chico ${u.activo ? 'peligro' : ''}" onclick="altaUsuario(${u.legajo}, ${!u.activo})">${u.activo ? 'Dar de baja' : 'Reactivar'}</button>` : ''}</td></tr>`).join('')}
-    </tbody></table></div>`;
-  S.usuarios = lista;
-};
-
-function modalUsuario(legajo) {
-  const u = legajo ? S.usuarios.find(x => x.legajo === legajo) : null;
-  abrirModal(`
-    <h2>${u ? 'Editar ' + esc(u.nombre) : 'Nuevo usuario'}</h2>
-    <form id="f-usuario"><div class="campos">
-      <label>Legajo <input name="legajo" type="number" min="1" step="1" value="${u ? u.legajo : ''}" ${u ? 'disabled' : 'required'}></label>
-      <label>Nombre <input name="nombre" value="${esc(u?.nombre || '')}" required></label>
-      ${u ? '' : '<label class="ancho">Contraseña provisoria (mínimo 6; le queda un aviso hasta que la cambie en Opciones) <input name="password" type="text" autocomplete="off" required></label>'}
-      <label class="check ancho"><input type="checkbox" name="es_admin" ${u?.es_admin ? 'checked' : ''}> Administrador (configura el sistema y maneja usuarios)</label>
-    </div><p class="error"></p>
-    <div class="botones"><button class="primario" type="submit">Guardar</button><button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`);
-  const f = $('#f-usuario');
-  f.addEventListener('submit', ev => {
-    ev.preventDefault();
-    enviar(f, async d => {
-      await api(u ? '/api/usuarios/' + legajo : '/api/usuarios', { metodo: u ? 'PUT' : 'POST', datos: d });
-      await recargarOpciones();
-      cerrarModal(); avisar(u ? 'Usuario actualizado.' : 'Usuario creado: entra con su legajo y la contraseña provisoria. Ya figura en Personal.');
-      if (u && legajo === S.usuario.legajo) return entrar();   // si se cambió a sí mismo, refresca nombre y rol
-      irA('usuarios');
-    });
-  });
-}
-
-function modalRestablecer(legajo) {
-  const u = S.usuarios.find(x => x.legajo === legajo);
-  abrirModal(`
-    <h2>Restablecer contraseña de ${esc(u.nombre)}</h2>
-    <p>Para quien se olvidó la suya: le ponés una provisoria y se la pasás; le queda un aviso hasta que elija una propia en Opciones. Se le cierran las sesiones abiertas.</p>
-    <form id="f-restablecer"><div class="campos"><label class="ancho">Contraseña provisoria (mínimo 6) <input name="password" type="text" autocomplete="off" required></label></div>
-    <p class="error"></p><div class="botones"><button class="primario" type="submit">Restablecer</button><button type="button" onclick="cerrarModal()">Cancelar</button></div></form>`);
-  const f = $('#f-restablecer');
-  f.addEventListener('submit', ev => {
-    ev.preventDefault();
-    enviar(f, async d => { await api(`/api/usuarios/${legajo}/password`, { metodo: 'POST', datos: d }); cerrarModal(); avisar('Contraseña restablecida.'); irA('usuarios'); });
-  });
-}
-
-async function altaUsuario(legajo, activo) {
-  if (!activo && !confirm('¿Dar de baja este usuario? No va a poder entrar (se le cierra la sesión); lo que registró se conserva.')) return;
-  try { await api(`/api/usuarios/${legajo}/${activo ? 'alta' : 'baja'}`, { metodo: 'POST' }); await recargarOpciones(); irA('usuarios'); }
-  catch (e) { avisar(e.message, true); }
-}
-
 // ── INSTRUCTIVOS ──
 VISTAS.instructivos = async id => {
   if (id) return verInstructivo(Number(id));
@@ -1592,6 +1328,14 @@ async function eliminarInstructivo(id) {
   catch (e) { avisar(e.message, true); }
 }
 
-// ── arranque ──
-S.token = leerToken();
-if (S.token) entrar(); else mostrarLogin();
+// Al entrar: las listas de los formularios (personas, equipos, secciones...) y el Plan.
+Nucleo.alEntrar.push(recargarOpciones);
+
+// En Opciones, para un administrador: programar de una vez lo que falta en el Plan.
+Nucleo.tarjetasOpciones.push({
+  orden: 20,
+  html: async () => S.usuario.es_admin ? `<div class="tarjeta" id="op-plan"><h3>Plan de mantenimiento</h3>
+    <p class="sutil">Programa de una vez todas las secciones de instructivos que los equipos todavía no tienen en el Plan.
+      La frecuencia viene sugerida por la tabla «Frecuencias» de cada instructivo; antes de guardar se revisa y se corrige.</p>
+    <button class="primario" onclick="modalProgramarTodos()">Programar todos</button></div>` : '',
+});

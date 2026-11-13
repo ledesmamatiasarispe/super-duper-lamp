@@ -88,8 +88,8 @@ def test_copiar_a_un_equipo_sin_instructivo_y_errores(api):
 
 
 def test_migracion_separa_los_instructivos_compartidos(api):
-    from app import servicios as sv
-    from app.db import transaccion
+    from modulos.mantenimiento import servicios as sv
+    from nucleo.db import transaccion
     eqs = {e["codigo"]: e for e in api.get("/api/equipos").json()}
     it02 = eqs["EQ-002"]["instructivo_ids"][0]
     otro = api.post("/api/equipos", json={"nombre": "Granalladora 2"}).json()

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- La arma nucleo/aplicacion.py: los marcadores se llenan con el nombre, el menú y los archivos de cada módulo. -->
+  <title>{{nombre}}</title>
+  <link rel="icon" type="image/svg+xml" href="{{icono}}">
+  <link rel="stylesheet" href="/static/nucleo/nucleo.css?v={{v}}">
+  <link rel="stylesheet" href="/static/nucleo/ayuda.css?v={{v}}">
+  {{estilos}}
+</head>
+<body data-prefijo="{{prefijo}}" data-login="{{login}}">
+  <div id="login" class="login oculto">
+    <form id="form-login" class="tarjeta login-caja">
+      <img class="login-logo" src="{{icono}}" alt="">
+      <h1>{{nombre}}</h1>
+      <p class="sutil">{{subtitulo}}</p>
+      <label>{{login}} <input name="usuario" autocomplete="username" autocapitalize="none" required></label>
+      <label>Contraseña <input name="password" type="password" autocomplete="current-password" required></label>
+      <p id="login-error" class="error" role="alert"></p>
+      <button class="primario">Entrar</button>
+    </form>
+  </div>
+
+  <div id="app" class="oculto">
+    <header class="barra">
+      <span class="marca"><img src="{{icono}}" alt=""><span class="marca-texto">{{nombre}}</span></span>
+      <nav id="menu" aria-label="Pantallas">
+        {{menu}}
+      </nav>
+      <button id="ayuda-boton" class="ayuda-boton" type="button" title="Cómo se usa esta pantalla"><span class="ayuda-icono">?</span> Ayuda</button>
+      <button id="tour-boton" class="ayuda-boton" type="button" title="Recorrido por toda la app"><span class="ayuda-icono">▶</span> Tour completo</button>
+      <span class="usuario"><span id="usuario-nombre"></span> · <button id="mi-password" class="link">Cambiar contraseña</button>
+        · <button id="mis-opciones" class="link">Opciones</button>
+        · <button id="salir" class="link">Salir</button></span>
+    </header>
+    <main id="vista"></main>
+  </div>
+
+  <dialog id="modal"><div id="modal-cuerpo"></div></dialog>
+  <div id="aviso" class="aviso oculto" role="status" aria-live="polite"></div>
+  <script src="/static/nucleo/nucleo.js?v={{v}}"></script>
+  <script src="/static/nucleo/ayuda.js?v={{v}}"></script>
+  {{scripts}}
+</body>
+</html>

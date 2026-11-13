@@ -1,198 +1,19 @@
 'use strict';
-// ── Ayuda guiada: recorrido paso a paso por la pantalla que se está viendo ──
-// Mismo patrón que el recorrido de GNC API (Cargar moldeo / Trabajos): un overlay transparente que bloquea los clics
-// de fondo, un "agujero" (#ayuda-spot) que oscurece todo menos el control que se explica, con un box-shadow gigante,
-// y un globo (#ayuda-tip) con "Paso X de N", título, texto y Saltar / Atrás / Siguiente (Listo en el último).
-// Teclado: ← → para moverse, Esc para cerrar.
-//
-// Todo vive en este archivo: el motor y los pasos de cada pantalla. No toca app.js: la pantalla actual se deduce del
-// hash y de lo que hay dibujado (el editor de instructivo no cambia el hash, se reconoce por su formulario #f-it), y los
-// formularios que se abren en el modal reciben su propio botón "Ayuda" al aparecer (ver el observador del final).
-//
-// Cada paso es { el, titulo, texto }: `el` es una función que busca el elemento en el momento (o una lista de elementos,
-// que se resaltan juntos). Si no encuentra nada visible —un botón que solo ve el administrador, una tabla vacía, una
-// sección que esa pantalla no tiene— el paso se saltea solo. Un paso sin `el` es una explicación general, centrada.
+// ── Módulo MANTENIMIENTO: la Ayuda de sus pantallas y sus pasos del Tour completo ──
+// El motor es del núcleo (nucleo/frontend/ayuda.js); acá solo los pasos, registrados en Ayuda.pasos y Ayuda.tour.
 (function () {
-  // ── buscar elementos ──
-  const visible = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
-  const todos = (sel, raiz = document) => [...raiz.querySelectorAll(sel)].filter(visible);
-  const uno = (sel, raiz = document) => todos(sel, raiz)[0] || null;
-  /** El primer elemento visible de `sel` cuyo texto contiene `t`. */
-  const conTexto = (sel, t, raiz = document) => todos(sel, raiz).find(e => e.textContent.includes(t)) || null;
-  const vista = () => document.getElementById('vista');
-  const modal = () => document.getElementById('modal');
-  const enVista = sel => uno(sel, vista());
-  const boton = t => conTexto('button', t, vista());
-  const tarjeta = t => conTexto('.tarjeta h3', t, vista())?.closest('.tarjeta') || null;
-  /** En el modal: el <label> del campo `name` (así se resalta junto con su título). */
-  const campo = name => { const el = modal().querySelector(`[name="${name}"]`); return visible(el) ? el.closest('label') || el : null; };
-  const botonModal = t => conTexto('button', t, modal());
-
-  // ── el motor ──
-  let pasos = [], paso = 0, gen = 0, dentroDelModal = false;
-  let completo = false;   // tour completo: los pasos llevan `ir` (la pantalla donde se muestran) y no se filtran de antemano
-  let overlay, spot, tip;
-
-  function armar() {
-    if (overlay) return;
-    overlay = document.createElement('div');
-    overlay.id = 'ayuda-overlay';
-    overlay.innerHTML = '<div id="ayuda-spot"></div><div id="ayuda-tip" role="dialog" aria-live="polite"></div>';
-    spot = overlay.firstChild; tip = overlay.lastChild;
-    tip.addEventListener('click', ev => {
-      const a = ev.target.closest('[data-ayuda-accion]')?.dataset.ayudaAccion;
-      if (a === 'cerrar') cerrar(); else if (a === 'siguiente') siguiente(); else if (a === 'anterior') anterior();
-    });
-  }
-
-  const abierto = () => !!overlay && overlay.classList.contains('abierto');
-
-  function iniciar(lista, opciones = {}) {
-    armar();
-    completo = !!opciones.completo;
-    // un paso que hoy no tiene a qué apuntar no cuenta: así "Paso X de N" dice la verdad y "Atrás" no rebota.
-    // En el tour completo no se puede saber de antemano (el elemento está en otra pantalla): se decide al mostrarlo.
-    pasos = completo ? lista.filter(p => !p.si || p.si()) : lista.filter(p => !p.el || elementos(p).length);
-    if (!pasos.length) return;
-    paso = 0;
-    // un <dialog> abierto vive en la capa superior: el overlay tiene que ir adentro suyo para quedar por encima
-    dentroDelModal = !!modal()?.open;
-    (dentroDelModal ? modal() : document.body).appendChild(overlay);
-    overlay.classList.add('abierto');
-    window.addEventListener('resize', reposicionar);
-    window.addEventListener('scroll', reposicionar, true);
-    document.addEventListener('keydown', teclado, true);
-    mostrar();
-  }
-
-  function cerrar() {
-    if (!abierto()) return;
-    overlay.classList.remove('abierto');
-    window.removeEventListener('resize', reposicionar);
-    window.removeEventListener('scroll', reposicionar, true);
-    document.removeEventListener('keydown', teclado, true);
-    gen++;
-  }
-
-  function teclado(e) {
-    const accion = { Escape: cerrar, ArrowRight: siguiente, ArrowLeft: anterior }[e.key];
-    if (!accion) return;
-    e.preventDefault(); e.stopPropagation();   // Esc no cierra el modal de abajo, ni las flechas mueven el cursor del campo
-    accion();
-  }
-
-  function siguiente() { if (paso >= pasos.length - 1) return cerrar(); paso++; mostrar(); }
-  function anterior() { if (paso <= 0) return; paso--; mostrar(); }
-
-  function elementos(p) {
-    if (!p.el) return [];
-    let r;
-    try { r = p.el(); } catch { r = null; }
-    return (Array.isArray(r) ? r : [r]).filter(visible);
-  }
-
-  function mostrar() {
-    const p = pasos[paso], g = ++gen;
-    const destino = typeof p.ir === 'function' ? p.ir() : p.ir;
-    if (destino === null) {   // la pantalla no se puede mostrar (por ejemplo, no hay ningún instructivo): se saltea
-      pasos.splice(paso, 1);
-      if (paso >= pasos.length) return cerrar();
-      return mostrar();
-    }
-    if (destino && (location.hash.slice(1) || 'inicio') !== destino) {   // el paso es de otra pantalla: se abre y se espera
-      tip.innerHTML = '<div class="ayuda-texto">Abriendo la pantalla…</div>';
-      ubicar([]);
-      window.scrollTo(0, 0);
-      irA(destino);   // de app.js; usa replaceState, así que no dispara el hashchange que cierra el recorrido
-      return esperarPantalla(g, mostrar);
-    }
-    const els = elementos(p);
-    // si el elemento no está, se saltea; salvo en el tour completo, donde el paso explica igual (centrado)
-    if (p.el && !els.length && !completo) {   // desapareció mientras tanto: se sigue de largo en la dirección en que se venía
-      pasos.splice(paso, 1);
-      if (paso >= pasos.length) return cerrar();
-      return mostrar();
-    }
-    const ultimo = paso === pasos.length - 1;
-    tip.innerHTML = `
-      <div class="ayuda-paso">Paso ${paso + 1} de ${pasos.length}</div>
-      <div class="ayuda-titulo">${p.titulo}</div>
-      <div class="ayuda-texto">${p.texto}</div>
-      <div class="ayuda-botones">
-        <button type="button" data-ayuda-accion="cerrar">Saltar</button>
-        <span>${paso > 0 ? '<button type="button" data-ayuda-accion="anterior">&#8249; Atrás</button>' : ''}
-          <button type="button" class="primario" data-ayuda-accion="siguiente">${ultimo ? 'Listo' : 'Siguiente &#8250;'}</button></span>
-      </div>`;
-    tip.querySelector('.primario').focus({ preventScroll: true });
-    if (els.length) els[0].scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-    ubicar(els);   // ya mismo, sin esperar al primer cuadro: si no, se ve un instante el agujero del paso anterior
-    seguir(els, g);
-  }
-
-  // Mientras dura el scroll suave se sigue al elemento cuadro a cuadro (en vez de adivinar cuánto tarda), hasta que
-  // queda quieto unos cuadros seguidos. `g` cancela el seguimiento de un paso viejo si se avanzó rápido.
-  function seguir(els, g) {
-    let quietos = 0, cuadros = 0, antes = '';
-    const tick = () => {
-      if (g !== gen || !abierto()) return;
-      const r = ubicar(els), ahora = r ? r.top + ',' + r.left : '';
-      quietos = ahora === antes ? quietos + 1 : 0; antes = ahora;
-      if (quietos < 6 && ++cuadros < 180) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
-
-  /** Espera a que la pantalla termine de cargar (deja de decir "Cargando…") y sigue; `g` lo cancela si se avanzó o cerró. */
-  function esperarPantalla(g, seguirCon, intentos = 0) {
-    if (g !== gen || !abierto()) return;
-    const v = vista(), cargando = v?.children.length === 1 && v.textContent.trim() === 'Cargando…';
-    if (cargando && intentos < 60) return setTimeout(() => esperarPantalla(g, seguirCon, intentos + 1), 100);
-    seguirCon();
-  }
-
-  function reposicionar() { if (abierto()) ubicar(elementos(pasos[paso])); }
-
-  /** Pone el agujero sobre la unión de los elementos y el globo debajo (o arriba, si abajo no entra). */
-  function ubicar(els) {
-    const W = window.innerWidth, H = window.innerHeight, m = 10;
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    if (!els.length) {   // explicación general: sin agujero, el globo en el centro
-      Object.assign(spot.style, { top: H / 2 + 'px', left: W / 2 + 'px', width: '0px', height: '0px' });
-      spot.classList.add('sin-elemento');
-      tip.style.top = Math.max(m, (H - th) / 2) + 'px';
-      tip.style.left = Math.max(m, (W - tw) / 2) + 'px';
-      return null;
-    }
-    spot.classList.remove('sin-elemento');
-    const rs = els.map(e => e.getBoundingClientRect());
-    const pad = 6;
-    const r = { top: Math.min(...rs.map(x => x.top)) - pad, left: Math.min(...rs.map(x => x.left)) - pad,
-      bottom: Math.max(...rs.map(x => x.bottom)) + pad, right: Math.max(...rs.map(x => x.right)) + pad };
-    // lo que se va de la pantalla no hace falta dibujarlo (una tabla larga, por ejemplo)
-    const v = { top: Math.max(r.top, 2), left: Math.max(r.left, 2), bottom: Math.min(r.bottom, H - 2), right: Math.min(r.right, W - 2) };
-    Object.assign(spot.style, { top: v.top + 'px', left: v.left + 'px',
-      width: Math.max(0, v.right - v.left) + 'px', height: Math.max(0, v.bottom - v.top) + 'px' });
-    let top = v.bottom + 12;
-    if (top + th > H - m) top = v.top - th - 12;              // abajo no entra: arriba
-    if (top < m) top = H - th - m;                            // tampoco: abajo de todo, encima del elemento
-    let left = W < 640 ? (W - tw) / 2 : v.left;               // en el celular, centrado
-    left = Math.min(Math.max(m, left), W - tw - m);
-    tip.style.top = Math.max(m, top) + 'px';
-    tip.style.left = Math.max(m, left) + 'px';
-    return v;
-  }
-
-  // Si se cambia de pantalla o se cierra el modal en el medio, el recorrido ya no tiene sentido.
-  window.addEventListener('hashchange', cerrar);
-
-  // ── los pasos de cada pantalla ──
+  const { uno, enVista, boton, tarjeta, campo, botonModal, menu } = Ayuda.h;
   const COMO_VER_OCULTOS = 'Marcá <b>Ver ocultos</b> (el número dice cuántos hay) y aparecen tachados, con el botón para reactivarlos. Se recuerda mientras navegás.';
   const VER_OCULTOS = 'Lo dado de baja <b>no se borra</b>: queda oculto para no estorbar. ' + COMO_VER_OCULTOS;
-
   /** Un símbolo del cronograma con los mismos colores que su leyenda. */
   const sim = (estado, c) => `<b class="ayuda-simbolo c-${estado}">${c}</b>`;
+  /** El primer instructivo de algún equipo (S.equipos lo llena la pantalla de Equipos, que el tour visita antes). */
+  const algunInstructivo = () => {
+    const e = (typeof S !== 'undefined' && S.equipos || []).find(x => x.instructivo_ids?.length);
+    return e ? 'instructivos/' + e.instructivo_ids[0] : null;
+  };
 
-  const PASOS = {
+  Object.assign(Ayuda.pasos, {
     inicio: () => [
       { titulo: 'Inicio: lo que hay que hacer', texto: 'Esta pantalla junta lo que está pendiente <b>hoy</b>: lo que toca este mes, lo que quedó atrasado y los servicios por horas que se acercan. '
         + 'Se arma sola con las tareas del <b>Plan</b> y lo que ya se registró: no hay que cargar nada acá.' },
@@ -362,30 +183,7 @@
       { el: () => enVista('.ver-ocultos'), titulo: 'Ver ocultos', texto: VER_OCULTOS },
     ],
 
-    usuarios: () => [
-      { titulo: 'Usuarios', texto: 'Quiénes entran al sistema. Un <b>usuario</b> ve todo y registra trabajos; un <b>administrador</b> además configura equipos, instructivos, Plan y personal, y maneja los usuarios.' },
-      { el: () => boton('Nuevo usuario'), titulo: 'Nuevo usuario', texto: 'Legajo, nombre y una contraseña provisoria: le queda un aviso amarillo hasta que elija una propia en Opciones. Pasa a figurar en Personal.' },
-      { el: () => boton('Restablecer contraseña'), titulo: 'Restablecer contraseña', texto: 'Para quien se olvidó la suya: le ponés una provisoria y se la pasás; le queda un aviso hasta que elija otra en Opciones. Se le cierran las sesiones abiertas.' },
-      { el: () => boton('Dar de baja'), titulo: 'Dar de baja', texto: 'Ya no puede entrar, pero <b>lo que registró se conserva</b>. Siempre tiene que quedar al menos un administrador activo.' },
-    ],
 
-    opciones: () => [
-      { titulo: 'Opciones', texto: 'Ajustes de la app. Se entra desde <b>Opciones</b>, arriba a la derecha, al lado de "Cambiar contraseña". Acá se irán sumando más opciones.' },
-      { el: () => document.getElementById('op-version'), titulo: 'Versión y actualizaciones', texto: 'Qué versión está instalada y si hay una más nueva. Cada vez que arranca, la app la busca sola, y al entrar un administrador le pregunta si quiere instalarla. '
-        + 'Si responde <b>Ahora no</b>, no se vuelve a preguntar por una semana, pero se puede actualizar antes desde acá.' },
-      { el: () => document.getElementById('op-password'), titulo: 'Contraseña', texto: 'Para elegir una contraseña propia: pide la actual y la nueva dos veces. Las otras sesiones abiertas se cierran. '
-        + 'Mientras sigas con una contraseña provisoria (la de fábrica o la que te puso un administrador) se puede usar todo, pero arriba queda un aviso amarillo hasta que la cambies.' },
-      { el: () => boton('Buscar ahora'), titulo: 'Buscar ahora', texto: 'Vuelve a consultar si salió una versión nueva, sin esperar al próximo arranque.' },
-      { el: () => boton('Actualizar ahora'), titulo: 'Actualizar ahora', texto: 'Baja la versión nueva, comprueba que el archivo esté sano, y la app se cierra y vuelve a abrir sola. La base de datos y los archivos adjuntos no se tocan.' },
-      { el: () => boton('Programar todos'), titulo: 'Programar todos (solo administradores)', texto: 'Arma de una vez las tareas del Plan que faltan: una por cada sección de instructivo que un equipo todavía no tiene programada. '
-        + 'La frecuencia viene sugerida por la tabla «Frecuencias» del instructivo; se revisa en la lista (frecuencia, mes de inicio, horas) y se guardan todas juntas. '
-        + '<b>Repartir meses</b> elige los meses de inicio para que los trabajos no se junten en los mismos meses, contando también lo que ya está en el Plan.' },
-      { el: () => document.getElementById('op-puerto'), titulo: 'Puerto (solo administradores)', texto: 'El número que va después de localhost: en la dirección de la app. '
-        + 'Se cambia si choca con otro programa de la PC (por ejemplo, otra app parecida); vale desde la próxima vez que se abre. Si al abrirla el elegido está ocupado, '
-        + 'la app arranca igual en el siguiente libre y lo avisa acá.' },
-      { el: () => document.getElementById('op-marca'), titulo: 'Nombre y logo (solo administradores)', texto: 'Cambia el nombre y el logo que se ven en la barra de arriba, en la pantalla de ingreso y en la pestaña del navegador, para todos los que usan la app. '
-        + 'Con el nombre vacío vuelve a "UltraMantenimiento"; <b>Volver al logo original</b> recupera el de fábrica. Se guardan con los datos, así que las actualizaciones no los pisan.' },
-    ],
 
     // ── formularios del modal ──
     'f-registro': () => [
@@ -428,23 +226,27 @@
       { el: () => campo('igual_a'), titulo: 'Equipo parecido: copiar su instructivo', texto: 'Si ya hay uno parecido, escribí su código o nombre y elegilo de la lista: el equipo arranca con una <b>copia</b> de su instructivo (con imágenes y archivos), '
         + 'con la ficha y el título ya cambiados al equipo nuevo. Cada uno queda independiente: cambiar uno no toca al otro. Si lo dejás vacío, se carga uno nuevo.' },
     ],
-  };
+  });
 
-  // ── tour completo: toda la app en el orden del trabajo real, con la lógica que la une ──
-  // Cada paso lleva `ir` (la pantalla donde se muestra); el motor la abre y espera que cargue. Va de lo que se configura
-  // una vez (equipos, instructivos, Plan) a lo que se usa todos los días (Cronograma, Registros, Inicio).
-  const menu = v => uno(`#menu a[data-vista="${v}"]`);
-  /** El primer instructivo de algún equipo (S.equipos lo llena la pantalla de Equipos, que el tour visita antes). */
-  const algunInstructivo = () => {
-    const e = (typeof S !== 'undefined' && S.equipos || []).find(x => x.instructivo_ids?.length);
-    return e ? 'instructivos/' + e.instructivo_ids[0] : null;
-  };
+  // Usuarios y Opciones son del núcleo: acá se suma lo propio de mantenimiento.
+  const usuariosNucleo = Ayuda.pasos.usuarios, opcionesNucleo = Ayuda.pasos.opciones;
+  Ayuda.pasos.usuarios = () => [...usuariosNucleo(),
+    { titulo: 'Usuarios y Personal', texto: 'Cada usuario figura solo en <b>Personal</b> (Mantenimiento interno), con su mismo nombre y su misma alta. Se entra con el <b>legajo</b>.' }];
+  Ayuda.pasos.opciones = () => [...opcionesNucleo(),
+    { el: () => boton('Programar todos'), titulo: 'Programar todos (solo administradores)', texto: 'Arma de una vez las tareas del Plan que faltan: una por cada sección de instructivo que un equipo todavía no tiene programada. '
+      + 'La frecuencia viene sugerida por la tabla «Frecuencias» del instructivo; se revisa en la lista (frecuencia, mes de inicio, horas) y se guardan todas juntas. '
+      + '<b>Repartir meses</b> elige los meses de inicio para que los trabajos no se junten en los mismos meses, contando también lo que ya está en el Plan.' }];
 
-  const TOUR = () => [
-    { ir: 'inicio', titulo: 'Tour completo', texto: 'Este recorrido muestra <b>toda la app</b> y cómo se conectan sus partes. Dura unos minutos; podés salir cuando quieras con <b>Saltar</b> o Esc, y moverte con las flechas ← →.' },
+  // El editor de instructivo no cambia el hash (se reconoce por su formulario) y un instructivo cuelga de Equipos.
+  Ayuda.detectores.push(() => document.getElementById('f-it') ? 'editor' : null);
+  Ayuda.detectores.push(() => {
+    const [v, param] = (location.hash.slice(1) || 'inicio').split('/');
+    return v === 'instructivos' ? (param ? 'instructivo' : 'equipos') : null;
+  });
+
+  Ayuda.tour.push(
     { ir: 'inicio', titulo: 'La idea en una línea', texto: 'Cada <b>equipo</b> tiene un <b>instructivo</b> dividido en <b>secciones</b>. Cada sección se programa en el <b>Plan</b> con una frecuencia, y eso arma el <b>Cronograma</b>. '
       + 'Cuando alguien hace el trabajo, lo <b>registra</b>, y el Cronograma y el cumplimiento se actualizan solos.' },
-    { ir: 'inicio', el: () => document.getElementById('menu'), titulo: 'Las pestañas', texto: 'Arriba están todas las pantallas. El tour las recorre en el orden en que se trabaja: primero lo que se configura una vez (equipos, instructivos, Plan) y después lo del día a día.' },
 
     // 1. equipos
     { ir: 'equipos', el: () => menu('equipos'), titulo: '1 · Equipos', texto: 'Todo empieza por los <b>equipos</b> de la planta: cada uno con su código (EQ-…), su <b>área</b>, marca/modelo y si tiene <b>horómetro</b>.' },
@@ -496,55 +298,6 @@
 
     // cierre: el día a día
     { ir: 'inicio', el: () => menu('inicio'), titulo: 'El día a día: Inicio', texto: 'Con todo configurado, el trabajo diario empieza acá: lo que toca <b>este mes</b>, lo <b>atrasado</b> y los servicios por horas que se acercan, cada uno con su botón para registrarlo.' },
-    { ir: 'inicio', el: () => document.getElementById('ayuda-boton'), titulo: '¿Y cada pantalla en detalle?', texto: 'El botón <b>Ayuda</b> explica, control por control, la pantalla en la que estés (y los formularios tienen el suyo). Este tour se puede repetir cuando quieras.' },
-  ];
 
-  /** Qué pantalla se está viendo. El editor de instructivo no cambia el hash: se reconoce por su formulario. */
-  function pantallaActual() {
-    if (document.getElementById('f-it')) return 'editor';
-    const [v, param] = (location.hash.slice(1) || 'inicio').split('/');
-    if (v === 'instructivos') return param ? 'instructivo' : 'equipos';
-    return PASOS[v] ? v : 'inicio';
-  }
-
-  function ayudaPantalla() {
-    if (abierto()) return;
-    // si se toca mientras la pantalla todavía dice "Cargando…", se espera un poco a que termine
-    let intentos = 0;
-    const probar = () => {
-      const cargando = vista()?.children.length === 1 && vista().textContent.trim() === 'Cargando…';
-      if (cargando && ++intentos < 40) return setTimeout(probar, 100);
-      iniciar(PASOS[pantallaActual()]());
-    };
-    probar();
-  }
-
-  function ayudaModal() {
-    const form = modal().querySelector('form[id]');
-    if (form && PASOS[form.id]) iniciar(PASOS[form.id]());
-  }
-
-  // ── los botones ──
-  document.addEventListener('click', ev => {
-    if (ev.target.closest('#ayuda-boton')) ayudaPantalla();
-    else if (ev.target.closest('#tour-boton')) { if (!abierto()) iniciar(TOUR(), { completo: true }); }
-    else if (ev.target.closest('.ayuda-boton-modal')) ayudaModal();
-  });
-
-  // Los formularios del modal que tienen recorrido reciben su botón "Ayuda" junto al título, apenas se abren.
-  const cuerpo = document.getElementById('modal-cuerpo');
-  if (cuerpo) new MutationObserver(() => {
-    const form = cuerpo.querySelector('form[id]'), h2 = cuerpo.querySelector('h2');
-    if (!form || !PASOS[form.id] || !h2 || h2.querySelector('.ayuda-boton-modal')) return;
-    h2.insertAdjacentHTML('beforeend', ' <button type="button" class="ayuda-boton ayuda-boton-modal" title="Cómo se usa este formulario"><span class="ayuda-icono">?</span> Ayuda</button>');
-  }).observe(cuerpo, { childList: true });
-
-  // Esc con el recorrido abierto cierra el recorrido, no el modal; y si el modal se cierra, el recorrido también.
-  const dlg = modal();
-  if (dlg) {
-    dlg.addEventListener('cancel', ev => { if (abierto() && dentroDelModal) { ev.preventDefault(); cerrar(); } }, true);
-    dlg.addEventListener('close', () => { if (dentroDelModal) cerrar(); });
-  }
-
-  window.Ayuda = { pantalla: ayudaPantalla, tour: () => iniciar(TOUR(), { completo: true }), iniciar, cerrar };
+  );
 })();

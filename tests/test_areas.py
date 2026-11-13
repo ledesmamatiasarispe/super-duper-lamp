@@ -2,7 +2,7 @@
 import sqlite3
 from datetime import date
 
-from app.db import _migrar_areas
+from modulos.mantenimiento.esquema import _migrar_areas
 from tests.test_api import HOY, api, error  # noqa: F401  (fixture con el admin ya logueado)
 
 

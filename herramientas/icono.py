@@ -1,5 +1,5 @@
-"""Genera herramientas/ultramantenimiento.ico (el ícono del .exe) sin librerías de imágenes: dibuja la omega invertida con
-la misma geometría que frontend/icono.svg (unidades de 0 a 64), con antialiasing por supermuestreo, y arma un .ico con
+"""Genera herramientas/icono.ico (el ícono del .exe) sin librerías de imágenes: dibuja la omega invertida con
+la misma geometría que app/frontend/icono.svg (unidades de 0 a 64), con antialiasing por supermuestreo, y arma un .ico con
 un PNG por tamaño. El .ico queda en el repositorio y compilar.py lo usa; regenerarlo solo si cambia el dibujo.
 
     .venv/Scripts/python.exe herramientas/icono.py"""
@@ -7,7 +7,7 @@ import struct
 import zlib
 from pathlib import Path
 
-DESTINO = Path(__file__).resolve().parent / "ultramantenimiento.ico"
+DESTINO = Path(__file__).resolve().parent / "icono.ico"
 TAMANOS = (16, 24, 32, 48, 64, 128, 256)
 AZUL, BLANCO = (0x17, 0x32, 0x4D), (255, 255, 255)
 # la omega invertida (℧, estilo Ultramarines): anillo de centro (32, 34) y radios 10 a 22, cortado arriba en y=16 con

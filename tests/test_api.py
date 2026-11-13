@@ -4,7 +4,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
+from nucleo import db
 
 HOY = date.today().isoformat()
 
@@ -14,7 +14,9 @@ def api(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "prueba.db")
     from app.main import app
     with TestClient(app) as cliente:
-        token = cliente.post("/api/auth/login", json={"legajo": 1, "password": "admin"}).json()["token"]
+        r = cliente.post("/api/auth/login", json={"usuario": "admin", "password": "admin"})
+        assert r.status_code == 200, r.text
+        token = r.json()["token"]
         cliente.headers["Authorization"] = f"Bearer {token}"
         # la contraseña de fábrica es provisoria: no bloquea nada, pero /api/auth/yo lo informa (el banner)
         assert cliente.get("/api/equipos").status_code == 200
@@ -35,7 +37,7 @@ def error(r, status=400):
 
 def test_sin_sesion_no_se_entra(api):
     assert api.get("/api/equipos", headers={"Authorization": ""}).status_code == 401
-    assert error(api.post("/api/auth/login", json={"legajo": 1, "password": "mal"}), 401)
+    assert error(api.post("/api/auth/login", json={"usuario": "admin", "password": "mal"}), 401)
 
 
 def test_ejemplos(api):
@@ -233,15 +235,19 @@ def test_eliminar_equipo_solo_si_no_tiene_nada_vinculado(api):
 
 
 def test_la_pagina_pide_los_archivos_con_la_version(api):
-    from app.version import VERSION
+    from nucleo.ajustes import VERSION
     r = api.get("/")
     assert r.headers["cache-control"] == "no-cache"
-    assert f'/static/app.js?v={VERSION}"' in r.text and f'/static/styles.css?v={VERSION}"' in r.text
+    for archivo in ("nucleo/nucleo.js", "nucleo/nucleo.css", "mantenimiento/mantenimiento.js", "mantenimiento/mapa.js",
+                    "mantenimiento/ayuda_mantenimiento.js", "mantenimiento/mantenimiento.css"):
+        assert f'/static/{archivo}?v={VERSION}"' in r.text, archivo
+    assert "/static/app/icono.svg" in r.text and api.get("/static/app/icono.svg").status_code == 200   # el ícono de la app
+    assert "Legajo" in r.text and "Fundición Romero" in r.text
 
 
 def test_lo_registrado_antes_del_alta_no_cuenta_en_el_cumplimiento(api):
     """Se cargó el historial de un año en que la tarea todavía no estaba en el Plan: se ve, pero no infla el porcentaje."""
-    from app import servicios as sv
+    from modulos.mantenimiento import servicios as sv
     t = tarea(api, "EQ-002-1")
     with db.transaccion() as c:
         c.execute("UPDATE tareas SET frecuencia='Mensual', mes_inicio=1, meses_especificos='', creado_en='2030-06-01' WHERE id=?", (t["id"],))

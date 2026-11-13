@@ -74,7 +74,7 @@ def test_programar_todos_ofrece_lo_que_falta_y_guarda_todo_o_nada(api):
 
 
 def test_frecuencia_sugerida_por_la_ficha():
-    from app.servicios import _frecuencia_sugerida as sug
+    from modulos.mantenimiento.servicios import _frecuencia_sugerida as sug
     assert sug("Cada tres meses", False) == {"frecuencia": "Trimestral"}
     assert sug("Cada 4 meses", False) == {"frecuencia": "Cuatrimestral"}
     assert sug("Cada 12 meses", False) == {"frecuencia": "Anual"}

@@ -1,5 +1,5 @@
 """Instructivos enriquecidos: bloques de contenido, detalle por actividad y adjuntos (imágenes y archivos)."""
-from app import db
+from nucleo import db
 from tests.test_api import api, error  # noqa: F401  (fixture con el admin ya logueado)
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -40,7 +40,7 @@ def test_subidas_invalidas(api):
     assert "no es un .png" in error(subir(api, it, "trucho.png", b"MZ ejecutable renombrado"))
     assert "no es un .pdf" in error(subir(api, it, "manual.pdf", PNG))
     assert "vacío" in error(subir(api, it, "vacio.pdf", b""))
-    from app import servicios
+    from modulos.mantenimiento import servicios
     grande = b"%PDF" + b"0" * servicios.MAX_ADJUNTO
     assert "máximo" in error(subir(api, it, "enorme.pdf", grande))
     # un nombre con carpetas no sale de data/adjuntos: se usa solo para mostrar
@@ -112,8 +112,8 @@ def test_revision_vieja_conserva_sus_imagenes_y_no_se_borran(api):
 
 
 def test_solo_admin_sube_y_borra(api):
-    api.post("/api/usuarios", json={"legajo": 50, "nombre": "Operario", "password": "123456"})
-    tok = api.post("/api/auth/login", json={"legajo": 50, "password": "123456"}, headers={"Authorization": ""}).json()["token"]
+    api.post("/api/usuarios", json={"usuario": "50", "nombre": "Operario", "password": "123456"})
+    tok = api.post("/api/auth/login", json={"usuario": "50", "password": "123456"}, headers={"Authorization": ""}).json()["token"]
     h = {"Authorization": f"Bearer {tok}"}
     api.post("/api/auth/password", json={"actual": "123456", "nueva": "propia1"}, headers=h)
     it = it01(api)

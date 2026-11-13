@@ -4,8 +4,7 @@ Al arrancar, la app consulta el último release de REPO (app/version.py). Si es 
 los administradores se les pregunta al entrar si quieren actualizar. "Ahora no" no vuelve a preguntar por una semana
 (la fecha se guarda en la base, en config: vale para todos los administradores, porque la app es una sola).
 
-MISMO ARCHIVO en UltraMantenimiento y Gestión Automotor (lo propio sale de version.py: APP, PREFIJO, REPO). Edificios
-de Mamá tiene su propia versión (se instala también desde el código fuente y en Linux/Mac), con los mismos pasos.
+Lo propio de cada app sale de ajustes (APP, PREFIJO, REPO, VERSION). Solo Windows y la versión compilada.
 
 Instalar:
 1. Baja el .zip del release y controla su SHA-256 contra el .sha256 publicado al lado (sin ese archivo no se instala).
@@ -37,12 +36,23 @@ from functools import lru_cache
 from pathlib import Path
 
 from . import db
-from . import version as v
-from .servicios import ErrorDeNegocio
+from . import ajustes as v
+from .errores import ErrorDeNegocio
 
-# <PREFIJO>_API_ACTUALIZACION la reemplaza solo para probar la actualización completa contra un servidor local
-API = os.environ.get(f"{v.PREFIJO}_API_ACTUALIZACION", "https://api.github.com/repos/{repo}/releases/latest")
-EXE = v.APP + ".exe"
+
+
+def _api() -> str:
+    """<PREFIJO>_API_ACTUALIZACION la reemplaza solo para probar la actualización completa contra un servidor local."""
+    return os.environ.get(f"{v.PREFIJO}_API_ACTUALIZACION", "https://api.github.com/repos/{repo}/releases/latest")
+
+
+def __getattr__(nombre):
+    if nombre == "API":
+        return _api()
+    if nombre == "EXE":
+        return v.exe()
+    raise AttributeError(nombre)
+
 POSPONER_DIAS = 7
 COPIAS_A_GUARDAR = 3   # copias de la base de antes de cada actualización
 _CACHE_SEGUNDOS = 6 * 3600   # la consulta a GitHub se repite cada tanto, no en cada pantalla
@@ -61,8 +71,8 @@ def _numeros(etiqueta: str) -> tuple:
     return tuple(partes)
 
 
-def es_mas_nueva(etiqueta: str, actual: str = v.VERSION) -> bool:
-    return _numeros(etiqueta) > _numeros(actual)
+def es_mas_nueva(etiqueta: str, actual: str | None = None) -> bool:
+    return _numeros(etiqueta) > _numeros(actual or v.VERSION)
 
 
 @lru_cache(maxsize=1)
@@ -133,7 +143,7 @@ def buscar(forzar: bool = False) -> dict:
             info["error"] = "Todavía no hay un repositorio de actualizaciones configurado."
         else:
             try:
-                rel = json.loads(_pedir(API.format(repo=v.REPO)))
+                rel = json.loads(_pedir(_api().format(repo=v.REPO)))
                 assets = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
                 zips = [n for n in assets if n.lower().endswith(".zip")]
                 info.update(nueva=rel.get("tag_name"), notas=(rel.get("body") or "")[:4000], url_release=rel.get("html_url"))
@@ -184,10 +194,10 @@ def _extraer(zip_path: Path, destino: Path) -> Path:
             if not (base / nombre).resolve().is_relative_to(base):
                 raise ErrorDeNegocio("El archivo de la actualización tiene rutas inválidas: no se instala.")
         z.extractall(destino)
-    for exe in [destino / EXE, *destino.glob("*/" + EXE)]:
+    for exe in [destino / v.exe(), *destino.glob("*/" + v.exe())]:
         if exe.is_file():
             return exe.parent
-    raise ErrorDeNegocio(f"La actualización no trae {EXE}: no se instala.")
+    raise ErrorDeNegocio(f"La actualización no trae {v.exe()}: no se instala.")
 
 
 def preparar(info: dict, carpeta: Path) -> Path:
@@ -244,7 +254,7 @@ if errorlevel 8 (
   echo No se pudo copiar la version nueva: se vuelve a poner la anterior.
   robocopy "{anterior}" "{instalacion}" /E /XD "{datos}" /R:10 /W:2 /NP /LOG+:"{log}"
 )
-start "" "{instalacion / EXE}"
+start "" "{instalacion / v.exe()}"
 rmdir /S /Q "{nueva}"
 del "%~f0"
 """

@@ -1,47 +1,17 @@
-"""Base SQLite: esquema, conexión y datos de ejemplo.
+"""Las tablas de mantenimiento y sus migraciones. usuarios, sesiones y config son del núcleo.
 
-Mismo criterio que GNC API (sqlite3 directo, una conexión por request), con dos
-diferencias: claves foráneas activadas (PRAGMA foreign_keys) y todo el esquema en
-un solo lugar. Las columnas que se suman después van también en _agregar_columnas.
-
-CONCURRENCIA (igual que Gestión Automotor): varios usuarios escriben a la vez contra el mismo archivo. Cada
-transacción arranca con BEGIN IMMEDIATE, que toma el permiso de escritura AL EMPEZAR: dos casos de uso que escriben
-quedan en fila (el segundo espera hasta busy_timeout), y lo que uno valida leyendo (por ejemplo, que el horómetro no
-baje) no lo puede invalidar otro entre la lectura y la escritura. Con el BEGIN diferido de sqlite3 los dos leían, y el
-segundo en escribir recibía "database is locked" en vez del mensaje de la regla.
+migrar(c) corre al arrancar, dentro de la transacción del núcleo y antes de que nadie use las tablas: es idempotente.
+La primera vez que arranca sobre una base anterior al núcleo (UltraMantenimiento 1.0.x), pasa los usuarios al esquema
+del núcleo SIN perder nada: el legajo pasa a ser el id y también el usuario con el que se entra (así cada uno sigue
+entrando con su legajo y todo lo que apuntaba al legajo sigue apuntando a la misma persona). Antes copia la base.
 """
-import itertools
 import json
-import os
 import sqlite3
-import sys
-import threading
-from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
 
-# Compilada, el código va en _internal/ y cada actualización lo reemplaza entero: los datos (base y adjuntos) tienen
-# que quedar al lado del .exe, fuera de lo que se reemplaza. En desarrollo, en la raíz del proyecto.
-ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
-DB_PATH = Path(os.environ.get("MANT_DB", ROOT / "data" / "mantenimiento.db"))
-ESPERA_MS = 30_000   # cuánto espera una escritura a que termine la de otro usuario antes de dar error
+from nucleo import db
 
 ESQUEMA = """
-CREATE TABLE IF NOT EXISTS usuarios (
-    legajo        INTEGER PRIMARY KEY,
-    nombre        TEXT    NOT NULL,
-    password_hash TEXT    NOT NULL,
-    salt          TEXT    NOT NULL,
-    es_admin      INTEGER NOT NULL DEFAULT 0,
-    activo        INTEGER NOT NULL DEFAULT 1,
-    debe_cambiar  INTEGER NOT NULL DEFAULT 0     -- contraseña provisoria (la puso un administrador): cambiarla al entrar
-);
-CREATE TABLE IF NOT EXISTS sesiones (
-    token     TEXT PRIMARY KEY,
-    legajo    INTEGER NOT NULL REFERENCES usuarios(legajo),
-    vence_en  TEXT    NOT NULL,
-    activa    INTEGER NOT NULL DEFAULT 1
-);
 -- Quién hace los trabajos (no tiene por qué tener usuario: un proveedor externo no entra al sistema).
 -- Dos categorías: operarios de mantenimiento interno y proveedores externos. Cada categoría tiene además una fila
 -- genérica (pide_nombre=1, la que lleva el nombre de la categoría): es "Otro (escribir nombre)" al registrar y
@@ -53,7 +23,7 @@ CREATE TABLE IF NOT EXISTS personas (
     contacto  TEXT  NOT NULL DEFAULT '',        -- teléfono, mail o rubro (sobre todo de proveedores)
     pide_nombre INTEGER NOT NULL DEFAULT 0,
     activo  INTEGER NOT NULL DEFAULT 1,
-    usuario_legajo INTEGER REFERENCES usuarios(legajo)   -- la ficha de un usuario del sistema (nombre y alta los maneja Usuarios)
+    usuario_legajo INTEGER REFERENCES usuarios(id)   -- la ficha de un usuario del sistema (nombre y alta los maneja Usuarios)
 );
 -- Áreas de la planta (Servicios, Terminación...): una lista, para que el mismo sector no aparezca escrito de tres formas
 CREATE TABLE IF NOT EXISTS areas (
@@ -200,86 +170,42 @@ CREATE TABLE IF NOT EXISTS planos (
     elementos  TEXT    NOT NULL DEFAULT '[]',          -- JSON: lo dibujado (ver servicios._validar_elementos)
     creado_por TEXT, creado_en TEXT, modificado_por TEXT, modificado_en TEXT
 );
-CREATE TABLE IF NOT EXISTS config (
-    clave  TEXT PRIMARY KEY,
-    valor  TEXT NOT NULL
-);
 """
 
 
-def conectar() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # isolation_level=None: las transacciones las abre transaccion() a mano (BEGIN IMMEDIATE), no sqlite3 por su cuenta
-    conn = sqlite3.connect(DB_PATH, timeout=ESPERA_MS / 1000, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute(f"PRAGMA busy_timeout = {ESPERA_MS}")
-    return conn
-
-
-_en_curso = threading.local()   # la conexión de la transacción abierta en este hilo (si hay)
-_savepoints = itertools.count(1)
-
-
-@contextmanager
-def transaccion():
-    """Una transacción por caso de uso: commit si termina bien, rollback si algo lanza.
-    BEGIN IMMEDIATE serializa las escrituras (ver el docstring del módulo).
-
-    REENTRANTE: si este hilo ya tiene una abierta, el bloque de adentro usa la MISMA conexión dentro de un SAVEPOINT
-    (si falla deshace solo lo suyo y relanza; si termina bien no confirma nada: confirma el bloque de afuera). Sin esto,
-    un caso de uso que llamara a otro abriría una segunda conexión y esperaría para siempre a la primera."""
-    externa = getattr(_en_curso, "conn", None)
-    if externa is not None:
-        nombre = f"sp{next(_savepoints)}"
-        externa.execute(f"SAVEPOINT {nombre}")
-        try:
-            yield externa
-        except BaseException:
-            externa.execute(f"ROLLBACK TO {nombre}")
-            externa.execute(f"RELEASE {nombre}")
-            raise
-        externa.execute(f"RELEASE {nombre}")
+def _migrar_usuarios_al_nucleo(c: sqlite3.Connection) -> None:
+    """usuarios(legajo, ...) -> usuarios(id, usuario, ...) del núcleo, y sesiones(legajo) -> sesiones(usuario_id).
+    RENAME COLUMN actualiza solo las claves foráneas que apuntaban a usuarios(legajo) (personas, sesiones): no hace falta
+    rehacer ninguna tabla. Las sesiones abiertas siguen valiendo."""
+    if "legajo" not in {r[1] for r in c.execute("PRAGMA table_info(usuarios)")}:
         return
-    conn = conectar()
-    _en_curso.conn = conn
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        yield conn
-        conn.execute("COMMIT")
-    except BaseException:
-        if conn.in_transaction:
-            conn.execute("ROLLBACK")
-        raise
-    finally:
-        _en_curso.conn = None
-        conn.close()
+    copia = db.DB_PATH.with_name(f"{db.DB_PATH.stem}_antes_del_nucleo.db")
+    if not copia.exists():   # la base tal como estaba (la transacción todavía no escribió nada)
+        origen, destino = sqlite3.connect(db.DB_PATH), sqlite3.connect(copia)
+        try:
+            origen.backup(destino)
+        finally:
+            destino.close()
+            origen.close()
+    c.execute("ALTER TABLE usuarios RENAME COLUMN legajo TO id")
+    c.execute("ALTER TABLE usuarios ADD COLUMN usuario TEXT")
+    c.execute("ALTER TABLE usuarios ADD COLUMN creado_en TEXT")
+    c.execute("UPDATE usuarios SET usuario = CAST(id AS TEXT)")
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_usuario ON usuarios(usuario COLLATE NOCASE)")
+    c.execute("ALTER TABLE sesiones RENAME COLUMN legajo TO usuario_id")
 
 
-def inicializar(con_ejemplos: bool = True) -> None:
-    # executescript confirma por su cuenta: va fuera de transaccion() (son todos CREATE ... IF NOT EXISTS)
-    conn = conectar()
-    try:
-        conn.executescript(ESQUEMA)
-    finally:
-        conn.close()
-    with transaccion() as c:
-        _agregar_columnas(c)
-        _migrar_areas(c)
-        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_personas_usuario ON personas(usuario_legajo)")
-        c.execute("INSERT OR IGNORE INTO config VALUES ('aviso_horas', '100')")
-        if con_ejemplos and not c.execute("SELECT 1 FROM usuarios").fetchone():
-            _cargar_ejemplos(c)
-        # todo usuario tiene su ficha en Personal (también los que existían antes de que esto fuera así)
-        from .usuarios import sincronizar_persona
-        for u in c.execute("SELECT legajo FROM usuarios WHERE legajo NOT IN "
-                           "(SELECT usuario_legajo FROM personas WHERE usuario_legajo IS NOT NULL)").fetchall():
-            sincronizar_persona(c, u["legajo"])
-        # una sola vez: la relación instructivo-equipo nace de lo que ya estaba en el Plan
-        if not c.execute("SELECT 1 FROM config WHERE clave='instructivo_equipos_armado'").fetchone():
-            c.execute("INSERT OR IGNORE INTO instructivo_equipos SELECT DISTINCT s.instructivo_id, t.equipo_id "
-                      "FROM tareas t JOIN secciones s ON s.id = t.seccion_id")
-            c.execute("INSERT INTO config VALUES ('instructivo_equipos_armado', '1')")
+def migrar(c: sqlite3.Connection) -> None:
+    _migrar_usuarios_al_nucleo(c)
+    _agregar_columnas(c)
+    _migrar_areas(c)
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_personas_usuario ON personas(usuario_legajo)")
+    c.execute("INSERT OR IGNORE INTO config VALUES ('aviso_horas', '100')")
+    # una sola vez: la relación instructivo-equipo nace de lo que ya estaba en el Plan
+    if not c.execute("SELECT 1 FROM config WHERE clave='instructivo_equipos_armado'").fetchone():
+        c.execute("INSERT OR IGNORE INTO instructivo_equipos SELECT DISTINCT s.instructivo_id, t.equipo_id "
+                  "FROM tareas t JOIN secciones s ON s.id = t.seccion_id")
+        c.execute("INSERT INTO config VALUES ('instructivo_equipos_armado', '1')")
 
 
 def _migrar_areas(c: sqlite3.Connection) -> None:
@@ -294,15 +220,14 @@ def _migrar_areas(c: sqlite3.Connection) -> None:
 
 def _agregar_columnas(c: sqlite3.Connection) -> None:
     """Columnas que se sumaron después de crear la base: CREATE TABLE IF NOT EXISTS no las agrega solo."""
-    for tabla, columna, tipo in (("usuarios", "debe_cambiar", "INTEGER NOT NULL DEFAULT 0"),
-                                 ("equipos", "area_id", "INTEGER REFERENCES areas(id)"),
+    for tabla, columna, tipo in (("equipos", "area_id", "INTEGER REFERENCES areas(id)"),
                                  ("instructivos", "bloques", "TEXT NOT NULL DEFAULT '[]'"),
                                  ("instructivos", "archivos", "TEXT NOT NULL DEFAULT '[]'"),
                                  ("instructivos", "orden", "TEXT NOT NULL DEFAULT '[]'"),
                                  ("actividades", "detalle", "TEXT NOT NULL DEFAULT ''"),
                                  ("equipos", "fecha_baja", "TEXT"),
                                  ("equipos", "motivo_baja", "TEXT"),
-                                 ("personas", "usuario_legajo", "INTEGER REFERENCES usuarios(legajo)"),
+                                 ("personas", "usuario_legajo", "INTEGER REFERENCES usuarios(id)"),
                                  ("personas", "pide_nombre", "INTEGER NOT NULL DEFAULT 0"),
                                  ("personas", "categoria", "TEXT NOT NULL DEFAULT 'interno'"),
                                  ("personas", "contacto", "TEXT NOT NULL DEFAULT ''"),
@@ -317,21 +242,15 @@ def _agregar_columnas(c: sqlite3.Connection) -> None:
             c.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
             if (tabla, columna) == ("personas", "pide_nombre"):   # las dos genéricas de los ejemplos
                 c.execute("UPDATE personas SET pide_nombre=1 WHERE nombre IN ('Mantenimiento interno', 'Proveedor externo')")
-            if (tabla, columna) == ("usuarios", "debe_cambiar"):   # quien siga con la contraseña de fábrica la cambia
-                from .auth import verificar_password
-                for u in c.execute("SELECT legajo, salt, password_hash FROM usuarios").fetchall():
-                    if verificar_password("admin", u["salt"], u["password_hash"]):
-                        c.execute("UPDATE usuarios SET debe_cambiar=1 WHERE legajo=?", (u["legajo"],))
             if (tabla, columna) == ("personas", "categoria"):
                 c.execute("UPDATE personas SET categoria='externo' WHERE nombre='Proveedor externo'")
 
 
-def _cargar_ejemplos(c: sqlite3.Connection) -> None:
-    """Un usuario administrador y dos equipos de ejemplo: uno con horómetro y otro sin."""
-    from .auth import hash_password  # evita import circular al cargar el módulo
-    salt, h = hash_password("admin")
-    c.execute("INSERT INTO usuarios (legajo, nombre, password_hash, salt, es_admin, debe_cambiar) "
-              "VALUES (1, 'Administrador', ?, ?, 1, 1)", (h, salt))
+def datos_iniciales(c: sqlite3.Connection) -> None:
+    """Las dos personas genéricas y dos equipos de ejemplo (uno con horómetro y otro sin). Solo en una base sin equipos:
+    el núcleo la llama una vez por base, y una base que ya venía de antes del núcleo ya tiene los suyos."""
+    if c.execute("SELECT 1 FROM equipos").fetchone() or c.execute("SELECT 1 FROM personas").fetchone():
+        return
     ahora, quien = datetime.now().isoformat(timespec="seconds"), "Sistema"
     aud = (quien, ahora, quien, ahora)
     for nombre, categoria in (("Mantenimiento interno", "interno"), ("Proveedor externo", "externo")):
@@ -389,3 +308,6 @@ def _cargar_ejemplos(c: sqlite3.Connection) -> None:
     tarea(1, 3, s1["C"], "Por horas", cada_horas=4000, proximo_inicial=53000)
     tarea(2, 1, s2["A"], "Mensual", mes_inicio=1)
     tarea(2, 2, s2["B"], "Semestral", mes_inicio=3)
+    # la relación instructivo-equipo de los ejemplos (migrar() la arma para bases viejas, pero corre antes que esto)
+    c.execute("INSERT OR IGNORE INTO instructivo_equipos SELECT DISTINCT s.instructivo_id, t.equipo_id "
+              "FROM tareas t JOIN secciones s ON s.id = t.seccion_id")

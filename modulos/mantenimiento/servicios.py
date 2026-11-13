@@ -1,6 +1,7 @@
-"""Casos de uso: la única puerta a los datos. Cada función es una transacción completa.
+"""Casos de uso de mantenimiento: la única puerta a los datos. Cada función es una transacción completa.
 
-Las rutas de main.py solo parsean y llaman acá; ninguna valida ni escribe SQL por su cuenta.
+Las rutas (rutas.py) solo parsean y llaman acá; ninguna valida ni escribe SQL por su cuenta.
+La sesión, los usuarios, la base y los errores vienen del núcleo (nucleo/).
 """
 import json
 import math
@@ -11,17 +12,11 @@ import sqlite3
 from datetime import date, datetime
 from pathlib import Path
 
+from nucleo import db
+from nucleo.db import transaccion
+from nucleo.errores import ErrorDeNegocio, NoEncontrado  # noqa: F401  (los usan las rutas y los tests como sv.ErrorDeNegocio)
+
 from . import calendario as cal
-from . import db
-from .db import transaccion
-
-
-class ErrorDeNegocio(Exception):
-    """Lo que el usuario cargó no se puede aceptar; el mensaje se le muestra tal cual."""
-
-
-class NoEncontrado(Exception):
-    pass
 
 
 # ── validaciones de campo ───────────────────────────────────────────────────

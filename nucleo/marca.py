@@ -1,7 +1,6 @@
 """El nombre y el logo que muestra la página (barra, pantalla de ingreso y pestaña del navegador). Se cambian en Opciones.
 
-MISMO ARCHIVO en UltraMantenimiento, Gestión Automotor y Edificios de Mamá (lo propio de cada una sale de version.py:
-NOMBRE, el nombre de fábrica). Se guardan en la tabla config (marca_nombre, marca_logo) y el logo en data/marca/, que
+El nombre de fábrica es ajustes.NOMBRE. Se guardan en la tabla config (marca_nombre, marca_logo) y el logo en data/marca/, que
 las actualizaciones no tocan. Un logo nuevo se guarda con otro nombre de archivo: así el navegador no muestra el viejo
 de su caché."""
 import re
@@ -9,12 +8,9 @@ import secrets
 from pathlib import Path
 
 from . import db
-from . import version as v
+from . import ajustes as v
 
-try:   # UltraMantenimiento y Gestión Automotor los tienen en servicios; Edificios de Mamá, en validar
-    from .servicios import ErrorDeNegocio, NoEncontrado
-except ImportError:
-    from .validar import ErrorDeNegocio, NoEncontrado
+from .errores import ErrorDeNegocio, NoEncontrado
 
 MAX_NOMBRE = 40
 MAX_LOGO = 2 * 1024 * 1024

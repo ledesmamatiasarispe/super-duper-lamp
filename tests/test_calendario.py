@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from app import calendario as cal
+from modulos.mantenimiento import calendario as cal
 
 
 def meses(frecuencia, inicio=None, especificos=""):
