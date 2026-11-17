@@ -11,6 +11,12 @@ const _asisMicro = !!_asisRec && window.isSecureContext;
 const _asisTactil = window.matchMedia?.('(pointer: coarse)').matches;
 let _asisPedido = null;      // AbortController de la pregunta en curso
 let _asisEscucha = null;     // reconocimiento de voz en curso
+let _asisEnlaces = [];       // los botones de la respuesta que se está mostrando
+let _asisSiNoFigura = null;  // lo que se ofrece si la IA contesta "No figura en la app"
+let _asisAyudaCache = null;
+// Las acciones que un módulo ofrece en las respuestas (por ejemplo, abrir un formulario ya completado):
+//   window.asisAcciones.<nombre> = datos => {...}     (el módulo puede registrarla antes o después de este archivo)
+window.asisAcciones = window.asisAcciones || {};
 
 function _asisArmar() {
   const barra = $('.barra');
@@ -66,7 +72,7 @@ async function asisPreguntar(texto) {
     const r = await fetch('/api/asistente/preguntar', {
       method: 'POST', signal: pedido.signal,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.token },
-      body: JSON.stringify({ pregunta }),
+      body: JSON.stringify({ pregunta, ayuda: _asisAyuda() }),
     });
     if (r.status === 401) return salir();
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'No se pudo preguntar.');
@@ -96,9 +102,11 @@ function _asisEvento(e, panel, escrito) {
     estado.dataset.esperando = textos[e.modo] || '';
     estado.textContent = estado.dataset.esperando;
     if (e.aviso) estado.insertAdjacentHTML('afterend', `<p class="asis-aviso">${esc(e.aviso)}</p>`);
-    $('.asis-enlaces', panel).innerHTML = (e.enlaces || []).map(x =>
-      `<button type="button" class="chico" onclick="asisIr('${esc(x.ir)}')">${esc(x.texto)}</button>`).join('');
+    _asisEnlaces = [...(e.enlaces || [])];
+    $('.asis-enlaces', panel).innerHTML = _asisEnlaces.map((x, i) =>
+      `<button type="button" class="chico${x.accion && x.accion !== 'preguntar' ? ' primario' : ''}" onclick="asisEnlace(${i})">${esc(x.texto)}</button>`).join('');
     panel.dataset.modo = e.modo;
+    _asisSiNoFigura = e.si_no_figura || null;
   } else if (e.tipo === 'texto') {
     escrito += e.texto;
     $('.asis-texto', panel).innerHTML = _asisFormato(escrito);
@@ -111,8 +119,44 @@ function _asisEvento(e, panel, escrito) {
       directa: 'Respondido por la app, con sus propios cálculos.', resumen: 'Resumen de la app (sin IA).', nada: '' }[panel.dataset.modo] || '';
     estado.textContent = como ? `${como} · ${e.segundos} s` : '';
     if (_asisTactil && !_asisMicro) estado.textContent += ' · Para dictar, usá el micrófono del teclado.';
+    // la IA no lo encontró en los datos: se ofrece cargarlo (por ejemplo, como especificación de la máquina)
+    const s = _asisSiNoFigura;
+    if (s && /no figura/i.test(escrito) && s.enlace) {
+      _asisEnlaces.push(s.enlace);
+      $('.asis-texto', panel).insertAdjacentHTML('afterend', `<p class="asis-sugerencia">${esc(s.texto)}
+        <button type="button" class="chico primario" onclick="asisEnlace(${_asisEnlaces.length - 1})">${esc(s.enlace.texto)}</button></p>`);
+    }
   }
   return escrito;
+}
+
+/** Un botón de la respuesta: ir a una pantalla, volver a preguntar, o una acción de un módulo (window.asisAcciones). */
+function asisEnlace(i) {
+  const x = _asisEnlaces[i];
+  if (!x) return;
+  if (x.ir) return asisIr(x.ir);
+  if (x.accion === 'preguntar') { $('#asis-pregunta').value = x.datos?.pregunta || ''; return asisPreguntar(x.datos?.pregunta); }
+  const accion = window.asisAcciones?.[x.accion];
+  if (!accion) return avisar('Esta acción no está disponible en esta app.', true);
+  asisCerrar();
+  accion(x.datos || {});
+}
+
+/** Los textos de la Ayuda de todas las pantallas (Ayuda.pasos y el Tour), para contestar "¿cómo cargo…?". Se arma una
+ *  vez: los pasos no dependen de estar en esa pantalla (sus `el` son funciones que no se llaman acá). */
+function _asisAyuda() {
+  if (_asisAyudaCache) return _asisAyudaCache;
+  const limpio = t => String(t || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const pasos = [];
+  for (const [pantalla, fn] of Object.entries(typeof Ayuda !== 'undefined' ? Ayuda.pasos : {})) {
+    try { for (const p of fn() || []) if (p?.texto) pasos.push({ pantalla, titulo: limpio(p.titulo), texto: limpio(p.texto) }); }
+    catch { /* una ayuda que necesita su pantalla abierta: se saltea */ }
+  }
+  for (const p of (typeof Ayuda !== 'undefined' ? Ayuda.tour : [])) {
+    if (p?.texto) pasos.push({ pantalla: p.ir || '', titulo: limpio(p.titulo), texto: limpio(p.texto) });
+  }
+  const vistos = new Set();
+  return (_asisAyudaCache = pasos.filter(p => { const k = p.titulo + p.texto; return !vistos.has(k) && vistos.add(k); }).slice(0, 400));
 }
 
 /** Texto plano a HTML seguro: renglones, listas con "-", "*" o "1." y **negrita**. */
@@ -168,6 +212,22 @@ function _asisDictar() {
   rec.start();
 }
 
+/** Opciones → "Reiniciar la IA": cierra Ollama y lo vuelve a abrir (solo un administrador, solo si corre en esta PC). */
+async function asisReiniciar(boton) {
+  boton.disabled = true;
+  const texto = boton.textContent;
+  boton.textContent = 'Reiniciando… (hasta un minuto)';
+  try {
+    const e = await api('/api/asistente/reiniciar', { metodo: 'POST' });
+    avisar(e.disponible ? 'La IA se reinició y está lista.' : 'La IA se reinició, pero: ' + e.motivo, !e.disponible);
+    irA('opciones');
+  } catch (e) {
+    avisar(e.message, true);
+    boton.disabled = false;
+    boton.textContent = texto;
+  }
+}
+
 // ── Opciones: la IA local ──
 Nucleo.tarjetasOpciones.push({
   orden: 40,
@@ -185,7 +245,10 @@ Nucleo.tarjetasOpciones.push({
         <label>Dirección de la IA (Ollama) <input name="url" value="${esc(e.url)}" placeholder="http://127.0.0.1:11434"></label>
         <label>Modelo ${e.modelos.length ? `<select name="modelo">${opcionesSelect(e.modelos.map(m => [m, m]), e.modelo, null)}</select>`
           : `<input name="modelo" value="${esc(e.modelo)}">`}</label>
-        <div class="botones"><button class="primario" type="submit">Guardar</button></div><p class="error"></p></form>` : ''}</div>`;
+        <div class="botones"><button class="primario" type="submit">Guardar</button></div><p class="error"></p></form>
+      <div class="botones"><button id="asis-reiniciar" type="button" onclick="asisReiniciar(this)">Reiniciar la IA</button></div>
+      <p class="sutil">Si la IA no contesta, se colgó o se cerró: la cierra y la vuelve a abrir (tarda hasta un minuto).
+        Solo cierra Ollama, ningún otro programa.</p>` : ''}</div>`;
   },
   activar: () => {
     const f = $('#f-asistente');

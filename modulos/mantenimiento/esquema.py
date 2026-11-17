@@ -170,6 +170,20 @@ CREATE TABLE IF NOT EXISTS planos (
     elementos  TEXT    NOT NULL DEFAULT '[]',          -- JSON: lo dibujado (ver servicios._validar_elementos)
     creado_por TEXT, creado_en TEXT, modificado_por TEXT, modificado_en TEXT
 );
+-- Especificaciones técnicas de cada equipo (aceite, correas, presiones, torques...): el dato y DE DÓNDE SALE. Es lo que
+-- la barra de preguntas contesta en vez de dejar que la IA invente; si falta, la barra ofrece cargarlo.
+CREATE TABLE IF NOT EXISTS especificaciones (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipo_id      INTEGER NOT NULL REFERENCES equipos(id),
+    nombre         TEXT    NOT NULL,                  -- "Aceite", "Correa del motor", "Presión de trabajo"
+    valor          TEXT    NOT NULL,                  -- "ISO VG 46", "SPZ 1060", "8"
+    unidad         TEXT    NOT NULL DEFAULT '',       -- "bar", "L", "Nm"
+    fuente         TEXT    NOT NULL DEFAULT 'otra' CHECK (fuente IN ('manual', 'placa', 'proveedor', 'tecnico', 'otra')),
+    fuente_detalle TEXT    NOT NULL DEFAULT '',       -- "Manual Cetec, pág. 12"
+    notas          TEXT    NOT NULL DEFAULT '',
+    creado_por TEXT, creado_en TEXT, modificado_por TEXT, modificado_en TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_especificaciones_nombre ON especificaciones(equipo_id, nombre COLLATE NOCASE);
 """
 
 

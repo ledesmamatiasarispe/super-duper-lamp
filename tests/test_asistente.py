@@ -56,8 +56,65 @@ def test_lo_demas_va_con_los_datos_de_la_maquina(sin_ia):
 def test_si_el_nombre_es_de_varias_maquinas_pregunta_cual(sin_ia):
     sin_ia.post("/api/equipos", json={"codigo": "EQ-003", "nombre": "Compresor de pistón", "area_id": 1})
     inicio, texto = preguntar(sin_ia, "¿qué le pasó al compresor?")
-    assert inicio["modo"] == "directa" and "EQ-001" in texto and "EQ-003" in texto
+    assert inicio["modo"] == "directa" and "¿Por cuál" in texto
+    # cada máquina es un botón que vuelve a preguntar nombrándola por su código
+    botones = {b["texto"]: b["datos"]["pregunta"] for b in inicio["enlaces"]}
+    assert botones["EQ-003 · Compresor de pistón"] == "¿qué le pasó al compresor (EQ-003)?"
+    assert preguntar(sin_ia, botones["EQ-003 · Compresor de pistón"])[0]["titulo"] == "EQ-003 · Compresor de pistón"
     assert preguntar(sin_ia, "¿qué le pasó al compresor de pistón?")[0]["titulo"] == "EQ-003 · Compresor de pistón"
+
+
+def test_especificaciones(sin_ia):
+    comp = equipo(sin_ia, "EQ-001")
+    url = f"/api/equipos/{comp['id']}/especificaciones"
+    r = sin_ia.post(url, json={"nombre": "Aceite", "valor": "ISO VG 46", "unidad": "", "fuente": "manual", "fuente_detalle": "Manual Cetec, pág. 12"})
+    assert r.status_code == 200, r.text
+    aceite = r.json()
+    assert "ya tiene" in error(sin_ia.post(url, json={"nombre": "aceite", "valor": "otro"}))      # sin importar mayúsculas
+    assert "valor" in error(sin_ia.post(url, json={"nombre": "Correa"}))
+    assert "lista" in error(sin_ia.post(url, json={"nombre": "Correa", "valor": "SPZ", "fuente": "inventada"}))
+    assert sin_ia.post(url, json={"nombre": "Presión de trabajo", "valor": "8", "unidad": "bar", "fuente": "placa"}).status_code == 200
+    lista = sin_ia.get(f"/api/especificaciones?equipo_id={comp['id']}").json()
+    assert [x["nombre"] for x in lista["especificaciones"]] == ["Aceite", "Presión de trabajo"]
+    assert lista["especificaciones"][0]["fuente_texto"] == "Manual del fabricante"
+    assert equipo(sin_ia, "EQ-001")["especificaciones"] == 2
+
+    # la barra la contesta la app, con su fuente, sin IA
+    inicio, texto = preguntar(sin_ia, "¿qué aceite usa el ETR-50?")
+    assert inicio["modo"] == "directa" and "Aceite: ISO VG 46 (según manual del fabricante, Manual Cetec, pág. 12)" in texto
+    assert "8 bar" in preguntar(sin_ia, "¿cuál es la presión de trabajo del EQ-001?")[1]
+    # sin máquina en la pregunta: aparece en la búsqueda
+    assert "ISO VG 46" in preguntar(sin_ia, "¿qué equipos usan aceite ISO VG 46?")[1]
+
+    # lo que no está: no se inventa, se ofrece cargarlo (con la máquina y el nombre sugeridos)
+    inicio, _ = preguntar(sin_ia, "¿qué correa lleva el ETR-50?")
+    assert inicio["si_no_figura"]["enlace"] == {"texto": "Cargar especificación", "accion": "especificacion",
+                                                "datos": {"equipo_id": comp["id"], "nombre": "Correa"}}
+    inicio, texto = preguntar(sin_ia, "¿qué grasa se usa en los rodillos?")
+    assert inicio["modo"] == "nada" and "No hay nada cargado" in texto
+    assert inicio["enlaces"][0]["datos"] == {"equipo_id": None, "nombre": "Grasa"}
+
+    # corregir y borrar (borrar es de administrador)
+    r = sin_ia.put(f"/api/especificaciones/{aceite['id']}", json={"nombre": "Aceite", "valor": "ISO VG 68", "fuente": "proveedor"})
+    assert r.json()["valor"] == "ISO VG 68"
+    assert sin_ia.delete(f"/api/especificaciones/{aceite['id']}").status_code == 200
+    assert len(sin_ia.get("/api/especificaciones").json()["especificaciones"]) == 1
+
+
+def test_ayuda_y_uso_de_la_app(sin_ia):
+    inicio, texto = preguntar(sin_ia, "ayuda")
+    assert inicio["titulo"] == "Ayuda" and any(b["datos"]["pregunta"] == "¿Hay algo vencido?" for b in inicio["enlaces"])
+    ayuda = [{"pantalla": "correctivos", "titulo": "Registrar correctivo", "texto": "Botón Registrar correctivo: qué falló y qué se hizo."}]
+    r = sin_ia.post("/api/asistente/preguntar", json={"pregunta": "¿Cómo cargo un correctivo?", "ayuda": ayuda})
+    evs = [json.loads(x) for x in r.text.splitlines() if x.strip()]
+    assert evs[0]["titulo"] == "Cómo se usa la app" and "qué falló" in "".join(e.get("texto", "") for e in evs if e["tipo"] == "texto")
+
+
+def test_borrar_un_equipo_cargado_por_error_se_lleva_sus_especificaciones(sin_ia):
+    r = sin_ia.post("/api/equipos", json={"nombre": "Equivocado", "area_id": 1}).json()
+    sin_ia.post(f"/api/equipos/{r['id']}/especificaciones", json={"nombre": "Aceite", "valor": "x"})
+    assert sin_ia.delete(f"/api/equipos/{r['id']}").status_code == 200
+    assert sin_ia.get(f"/api/especificaciones?equipo_id={r['id']}").json()["especificaciones"] == []
 
 
 def test_la_pregunta_se_valida(api):

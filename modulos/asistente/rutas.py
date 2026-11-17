@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/asistente")
 
 @router.post("/preguntar")
 def preguntar(body: dict = Body(...), u: dict = Usuario):
-    eventos = servicios.preguntar(body.get("pregunta"))
+    eventos = servicios.preguntar(body.get("pregunta"), ayuda=body.get("ayuda"))
     primero = next(eventos)   # valida la pregunta acá: un error de negocio sale como 400, no a mitad de la respuesta
 
     def lineas():
@@ -27,6 +27,11 @@ def preguntar(body: dict = Body(...), u: dict = Usuario):
 @router.get("/estado")
 def estado(u: dict = Usuario):
     return servicios.estado()
+
+
+@router.post("/reiniciar")
+def reiniciar(u: dict = Admin):
+    return servicios.reiniciar(u)
 
 
 @router.put("/ajustes")

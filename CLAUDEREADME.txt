@@ -174,7 +174,9 @@ La idea en una línea:
   v1.2.0 (Mapa: el dibujo pasa a ser un croquis como el de SolidWorks/Onshape: restricciones, cotas que mandan,
   grados de libertad, recortar/extender/equidistancia/simetría, zoom, deshacer; núcleo de appbase 1.1.0),
   v1.3.0 (barra "Preguntá algo" arriba de todo: lo exacto lo contesta la app, lo demás una IA local con Ollama;
-  micrófono en la PC; módulo asistente de appbase).
+  micrófono en la PC; módulo asistente de appbase),
+  v1.4.0 (especificaciones técnicas por equipo; la barra contesta "ayuda" y el uso de la app, ofrece cargar lo que
+  no figura, botones para elegir la máquina; Opciones -> Reiniciar la IA).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -243,5 +245,17 @@ La idea en una línea:
     en Opciones (dirección y modelo). Sin Ollama, la barra muestra el resumen de la app con un aviso.
   - Micrófono: reconocimiento de voz del navegador, solo en página segura (http://localhost en la PC). En el celular por
     la red (http://192.168...) no hay botón: se dicta con el micrófono del teclado.
+  - Opciones → "Reiniciar la IA" (administrador, solo si Ollama está en esta PC): cierra SOLO los procesos que salen de
+    la carpeta de Ollama (la busca en Programas instalados de Windows) y arranca "ollama serve" sin ventana, con las
+    variables OLLAMA_* del usuario (si no, buscaría los modelos en C:). NO abre "ollama app.exe": abierta desde otro
+    programa, la app de la bandeja arrancaba pero su servidor no (probado). Hasta reiniciar la PC no hay ícono en la bandeja.
+  - ESPECIFICACIONES (tabla especificaciones: equipo, nombre, valor, unidad, fuente manual/placa/proveedor/tecnico/otra,
+    detalle, notas; única por equipo+nombre sin mayúsculas). Botón "Especificaciones" en Equipos; cualquiera carga o
+    corrige, borrar es de administrador. Una pregunta técnica NUNCA la contesta la IA "de lo que sabe": si la
+    especificación está cargada la contesta la app (con su fuente); si no, la IA busca en los datos de la máquina y, si
+    dice "No figura", la barra ofrece "Cargar especificación" con la máquina y el nombre ya puestos (sacado de la
+    pregunta: "presión de trabajo"). Sin máquina y sin nada cargado: "No hay nada cargado sobre «…»" + cargarla.
+  - "ayuda"/"hola" -> ejemplos de preguntas (botones que preguntan). "¿Cómo cargo…?" -> la IA resume los textos de la
+    Ayuda de las pantallas (los manda el navegador: Ayuda.pasos y el Tour; no se escriben dos veces).
   - PC de la oficina: i5-10400, 8 GB RAM, sin placa de video. Respuestas de 2 a 30 s (la primera, ~35 s: carga el modelo).
 

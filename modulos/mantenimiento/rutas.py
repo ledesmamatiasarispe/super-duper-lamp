@@ -312,6 +312,31 @@ def correctivos(anio: Optional[int] = None, equipo_id: Optional[int] = None, u: 
     return sv.listar_correctivos(anio, equipo_id)
 
 
+# ── especificaciones: cualquiera las carga o corrige (queda quién y cuándo); borrar es de administrador ──
+CAMPOS_ESPECIFICACION = ("nombre", "valor", "unidad", "fuente", "fuente_detalle", "notas")
+
+
+@router.get("/api/especificaciones")
+def especificaciones(equipo_id: Optional[int] = None, u: dict = Usuario):
+    return {"especificaciones": sv.listar_especificaciones(equipo_id), "fuentes": sv.FUENTES_ESPECIFICACION}
+
+
+@router.post("/api/equipos/{equipo_id}/especificaciones")
+def crear_especificacion(equipo_id: int, body: dict = Body(...), u: dict = Usuario):
+    return sv.crear_especificacion(u, equipo_id, **{k: body.get(k) for k in CAMPOS_ESPECIFICACION})
+
+
+@router.put("/api/especificaciones/{especificacion_id}")
+def actualizar_especificacion(especificacion_id: int, body: dict = Body(...), u: dict = Usuario):
+    return sv.actualizar_especificacion(u, especificacion_id, **{k: body.get(k) for k in CAMPOS_ESPECIFICACION})
+
+
+@router.delete("/api/especificaciones/{especificacion_id}")
+def eliminar_especificacion(especificacion_id: int, u: dict = Admin):
+    sv.eliminar_especificacion(u, especificacion_id)
+    return {"ok": True}
+
+
 @router.post("/api/equipos/{equipo_id}/correctivos")
 def registrar_correctivo(equipo_id: int, body: dict = Body(...), u: dict = Usuario):
     campos = ("fecha", "falla", "causa", "accion", "horas_parada", "horas_hombre", "repuestos",

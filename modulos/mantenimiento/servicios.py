@@ -206,6 +206,7 @@ def listar_equipos(incluir_baja: bool = False) -> list[dict]:
             SELECT e.*, coalesce(a.nombre, '') AS sector, (SELECT count(*) FROM tareas WHERE equipo_id = e.id)
                       + (SELECT count(*) FROM lecturas_horometro WHERE equipo_id = e.id)
                       + (SELECT count(*) FROM correctivos WHERE equipo_id = e.id) AS vinculos,
+                   (SELECT count(*) FROM especificaciones WHERE equipo_id = e.id) AS especificaciones,
                    (SELECT group_concat(instructivo_id) FROM instructivo_equipos WHERE equipo_id = e.id) AS instructivos
             FROM equipos e LEFT JOIN areas a ON a.id = e.area_id """ + ("" if incluir_baja else "WHERE e.activo=1 ") + "ORDER BY e.codigo")
         salida = []
@@ -477,12 +478,72 @@ def eliminar_equipo(usuario: dict, equipo_id: int) -> None:
                                                               WHERE y.instructivo_id = x.instructivo_id AND y.equipo_id <> ?)""",
                                            (equipo_id, equipo_id))]
         c.execute("DELETE FROM instructivo_equipos WHERE equipo_id=?", (equipo_id,))
+        c.execute("DELETE FROM especificaciones WHERE equipo_id=?", (equipo_id,))   # eran de ese equipo cargado por error
         c.execute("DELETE FROM equipos WHERE id=?", (equipo_id,))
     for it_id in propios:   # el que se usó en algún Plan no se borra: queda sin equipo, a la vista en la pestaña
         try:
             eliminar_instructivo(usuario, it_id)
         except ErrorDeNegocio:
             pass
+
+
+# ── especificaciones de cada equipo ─────────────────────────────────────────
+
+FUENTES_ESPECIFICACION = {"manual": "Manual del fabricante", "placa": "Placa del equipo", "proveedor": "Proveedor",
+                          "tecnico": "Técnico / experiencia", "otra": "Otra"}
+
+
+def listar_especificaciones(equipo_id: int | None = None) -> list[dict]:
+    with transaccion() as c:
+        filas = c.execute("""SELECT s.*, e.codigo AS equipo_codigo, e.nombre AS equipo FROM especificaciones s
+                             JOIN equipos e ON e.id = s.equipo_id WHERE (? IS NULL OR s.equipo_id = ?)
+                             ORDER BY e.codigo, s.nombre COLLATE NOCASE""", (equipo_id, equipo_id))
+        return [{**dict(r), "fuente_texto": FUENTES_ESPECIFICACION.get(r["fuente"], r["fuente"])} for r in filas]
+
+
+def _datos_especificacion(d: dict) -> tuple:
+    fuente = d.get("fuente") or "otra"
+    if fuente not in FUENTES_ESPECIFICACION:
+        raise ErrorDeNegocio("De dónde sale el dato: elegí una opción de la lista.")
+    return (_corto(_texto(d.get("nombre"), "el nombre (por ejemplo «Aceite»)"), 80),
+            _corto(_texto(d.get("valor"), "el valor (por ejemplo «ISO VG 46»)"), 200),
+            _corto(d.get("unidad"), 20), fuente, _corto(d.get("fuente_detalle"), 200), _corto(d.get("notas"), 1000))
+
+
+def _guardar_especificacion(c, sql: str, params: tuple, nombre: str):
+    try:
+        c.execute(sql, params)
+    except sqlite3.IntegrityError:   # el índice único: la misma especificación dos veces en un equipo
+        raise ErrorDeNegocio(f"Este equipo ya tiene una especificación «{nombre}»: modificá esa en vez de cargar otra.")
+
+
+def crear_especificacion(usuario: dict, equipo_id: int, **datos) -> dict:
+    nombre, valor, unidad, fuente, detalle, notas = _datos_especificacion(datos)
+    with transaccion() as c:
+        _fila(c, "SELECT 1 FROM equipos WHERE id=?", (equipo_id,), "ese equipo")
+        ahora = _ahora()
+        _guardar_especificacion(c, "INSERT INTO especificaciones (equipo_id, nombre, valor, unidad, fuente, fuente_detalle, notas, "
+                                   "creado_por, creado_en, modificado_por, modificado_en) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                (equipo_id, nombre, valor, unidad, fuente, detalle, notas, usuario["nombre"], ahora, usuario["nombre"], ahora),
+                                nombre)
+        return dict(c.execute("SELECT * FROM especificaciones WHERE id=last_insert_rowid()").fetchone())
+
+
+def actualizar_especificacion(usuario: dict, especificacion_id: int, **datos) -> dict:
+    nombre, valor, unidad, fuente, detalle, notas = _datos_especificacion(datos)
+    with transaccion() as c:
+        _fila(c, "SELECT 1 FROM especificaciones WHERE id=?", (especificacion_id,), "esa especificación")
+        _guardar_especificacion(c, "UPDATE especificaciones SET nombre=?, valor=?, unidad=?, fuente=?, fuente_detalle=?, notas=?, "
+                                   "modificado_por=?, modificado_en=? WHERE id=?",
+                                (nombre, valor, unidad, fuente, detalle, notas, usuario["nombre"], _ahora(), especificacion_id), nombre)
+        return dict(c.execute("SELECT * FROM especificaciones WHERE id=?", (especificacion_id,)).fetchone())
+
+
+def eliminar_especificacion(usuario: dict, especificacion_id: int) -> None:
+    """Un dato mal cargado se corrige con Modificar; borrar es para uno que no corresponde a ese equipo."""
+    with transaccion() as c:
+        _fila(c, "SELECT 1 FROM especificaciones WHERE id=?", (especificacion_id,), "esa especificación")
+        c.execute("DELETE FROM especificaciones WHERE id=?", (especificacion_id,))
 
 
 # ── áreas ───────────────────────────────────────────────────────────────────

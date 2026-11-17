@@ -589,6 +589,7 @@ VISTAS.equipos = async () => {
         <td>${e.activo ? '<span class="chip verde">Vigente</span>'
           : `<span class="chip rojo">Obsoleto</span><br><span class="sutil">${fecha(e.fecha_baja)}${e.motivo_baja ? ' · ' + esc(e.motivo_baja) : ''}</span>`}</td>
         <td class="botones">${botonIt(e)}
+          <button class="chico" onclick="modalEspecificaciones(${e.id})">Especificaciones${e.especificaciones ? ' (' + e.especificaciones + ')' : ''}</button>
           ${soloAdmin(e.activo
             ? `<button class="chico" onclick="modalEquipo(${e.id})">Editar</button>
                <button class="chico" onclick="obsoletoEquipo(${e.id})">Marcar obsoleto</button>`

@@ -60,7 +60,65 @@ def _enlaces(e: dict) -> list[dict]:
     enlaces = [{"texto": "Ver instructivo", "ir": f"instructivos/{i}"} for i in (e.get("instructivo_ids") or [])[:1]]
     if e.get("plano_id"):
         enlaces.append({"texto": "Ver en el mapa", "ir": f"mapa/{e['plano_id']}"})
-    return enlaces + [{"texto": "Registros", "ir": "registros"}, {"texto": "Correctivos", "ir": "correctivos"}]
+    return enlaces + [{"texto": "Especificaciones", "accion": "verEspecificaciones", "datos": {"equipo_id": e["id"]}},
+                      {"texto": "Registros", "ir": "registros"}, {"texto": "Correctivos", "ir": "correctivos"}]
+
+
+# ── especificaciones: el dato técnico cargado, o la invitación a cargarlo (nunca uno inventado) ──
+_VACIAS_ESPECIFICACION = _PALABRAS_VACIAS | set("""que el la los las de del es son se le lo un una al en mi hay usa usan lleva
+llevan necesita necesitan va van tipo marca modelo medida valor cuál dato datos especificacion especificaciones sabe
+saber necesito decir dice cuanto cuanta lleva y o a con por""".split())
+
+
+def _linea_especificacion(x: dict) -> str:
+    fuente = x.get("fuente_texto") or s.FUENTES_ESPECIFICACION.get(x["fuente"], x["fuente"])
+    return (f"- {x['nombre']}: {x['valor']}{' ' + x['unidad'] if x.get('unidad') else ''} (según {fuente.lower()}"
+            f"{', ' + x['fuente_detalle'] if x.get('fuente_detalle') else ''})" + (f". Nota: {x['notas']}" if x.get("notas") else ""))
+
+
+def _nombre_sugerido(pregunta: str, e: dict | None = None) -> str:
+    """De "¿qué aceite usa el compresor ETR-50?" sale "Aceite": las palabras de la pregunta que no son relleno ni el
+    nombre de la máquina. Es solo una sugerencia para el formulario: quien carga la corrige."""
+    de_la_maquina = _palabras(f"{e['nombre']} {e.get('marca_modelo') or ''} {e['codigo']}") if e else set()
+    tokens = re.findall(r"[a-záéíóúñü0-9]+", (pregunta or "").lower())
+
+    def sirve(p):
+        return (len(p) >= 3 and _norm(p) not in _VACIAS_ESPECIFICACION and _norm(p) not in de_la_maquina
+                and not re.fullmatch(r"\d+[a-z]?", p))
+    # la primera palabra que sirve y las que la siguen, con sus "de"/"del" ("presión de trabajo", "correa del motor")
+    inicio = next((i for i, p in enumerate(tokens) if sirve(p)), None)
+    if inicio is None:
+        return ""
+    frase, i = [tokens[inicio]], inicio + 1
+    while i < len(tokens) and len(frase) < 5:
+        if sirve(tokens[i]):
+            frase.append(tokens[i])
+        elif tokens[i] in ("de", "del"):   # "de", "del", "de la", "de los"... seguido de una palabra que sirve
+            j = i + 1 + (i + 1 < len(tokens) and tokens[i + 1] in ("la", "las", "los", "el"))
+            if j >= len(tokens) or not sirve(tokens[j]):
+                break
+            frase += tokens[i:j + 1]
+            i = j
+        else:
+            break
+        i += 1
+    return " ".join(frase).capitalize()
+
+
+def _especificaciones_pedidas(pregunta: str, e: dict) -> list[dict]:
+    """Las especificaciones del equipo cuyo nombre aparece en la pregunta ("aceite" -> "Aceite", "correas" -> "Correa")."""
+    q = _palabras(pregunta)
+    salida = []
+    for x in s.listar_especificaciones(e["id"]):
+        propias = [p for p in _palabras(x["nombre"]) if len(p) >= 3 and p not in _VACIAS_ESPECIFICACION]
+        if propias and all(p in q or p + "s" in q or p.rstrip("s") in q or p + "es" in q for p in propias):
+            salida.append(x)
+    return salida
+
+
+def _cargar(e: dict | None, nombre: str) -> dict:
+    return {"texto": "Cargar especificación", "accion": "especificacion",
+            "datos": {"equipo_id": e["id"] if e else None, "nombre": nombre}}
 
 
 # ── sin IA: listas y cuentas ──
@@ -89,9 +147,16 @@ def responder(pregunta: str) -> dict | None:
     candidatos = _candidatos(pregunta)
     if len(candidatos) > 1:
         return {"titulo": "¿Cuál máquina?",
-                "texto": "Encontré varias máquinas con ese nombre. Preguntá de nuevo nombrando una:\n"
-                         + "\n".join(f"- {e['codigo']} · {e['nombre']}" for e in candidatos[:8]),
-                "enlaces": [{"texto": "Equipos", "ir": "equipos"}]}
+                "texto": "Encontré varias máquinas con ese nombre. ¿Por cuál preguntás?",
+                "enlaces": [{"texto": f"{e['codigo']} · {e['nombre']}", "accion": "preguntar",
+                             "datos": {"pregunta": f"{pregunta.rstrip(' ?¿')} ({e['codigo']})?"}} for e in candidatos[:8]]}
+    if len(candidatos) == 1:
+        e = candidatos[0]
+        pedidas = _especificaciones_pedidas(pregunta, e)
+        if pedidas:
+            return {"titulo": f"{e['codigo']} · {e['nombre']}",
+                    "texto": "Especificaciones cargadas:\n" + "\n".join(map(_linea_especificacion, pedidas)),
+                    "enlaces": [{"texto": "Ver todas las especificaciones", "accion": "verEspecificaciones", "datos": {"equipo_id": e["id"]}}]}
     if len(candidatos) == 1 and _PIDE_LECTURA.search(q) and not re.search(r"\b(falta\w*|proximo|servicio)\b", q):
         e = candidatos[0]
         h = next((x for x in s.estado_horometros() if x["equipo_id"] == e["id"]), None)
@@ -182,6 +247,11 @@ def _datos_equipo(e: dict) -> tuple[str, str]:
     if correctivos:
         resumen.append("Últimas reparaciones:\n" + "\n".join(f"- {_fecha(c['fecha'])}: {c['falla']}" + (f" → {c['accion'][:120]}" if c.get("accion") else "")
                                                             for c in correctivos[:3]))
+    especificaciones = s.listar_especificaciones(e["id"])
+    lineas.append("ESPECIFICACIONES TÉCNICAS (cargadas, con su fuente):" if especificaciones else "ESPECIFICACIONES TÉCNICAS: ninguna cargada")
+    lineas += [_linea_especificacion(x) for x in especificaciones]
+    if especificaciones:
+        resumen.append("Especificaciones:\n" + "\n".join(map(_linea_especificacion, especificaciones)))
     for it_id in (e.get("instructivo_ids") or [])[:1]:
         it = s.obtener_instructivo(it_id)
         lineas.append(f"INSTRUCTIVO {it['codigo']} ({it['titulo']}):")
@@ -210,9 +280,11 @@ def _buscar_en_lo_anotado(pregunta: str) -> dict | None:
                  + (f"; repuestos: {r['repuestos']}" if r.get("repuestos") else "")
                  for r in s.listar_registros(limite=2000) if coincide(r.get("novedades"), r.get("repuestos"))
                  and not (r.get("novedades") or "").startswith("Cargado del")]
-    if not hallados:
+    especificaciones = [f"{x['equipo_codigo']} {x['equipo']} {_linea_especificacion(x)[2:]}" for x in s.listar_especificaciones()
+                        if coincide(x["nombre"], x["valor"], x.get("notas"))]
+    if not (hallados or especificaciones):
         return None
-    hallados = hallados[:12]
+    hallados = ([f"- Especificación de {x}" for x in especificaciones] + hallados)[:12]
     return {"titulo": "Búsqueda en lo anotado", "datos": "LO ANOTADO QUE COINCIDE CON LA PREGUNTA:\n" + "\n".join(hallados),
             "resumen": "Lo anotado que coincide:\n" + "\n".join(hallados),
             "enlaces": [{"texto": "Correctivos", "ir": "correctivos"}, {"texto": "Registros", "ir": "registros"}]}
@@ -223,13 +295,33 @@ def contexto(pregunta: str) -> dict | None:
     if len(candidatos) == 1:
         e = candidatos[0]
         datos, resumen = _datos_equipo(e)
-        return {"titulo": f"{e['codigo']} · {e['nombre']}", "datos": datos, "resumen": resumen, "enlaces": _enlaces(e)}
+        sugerido = _nombre_sugerido(pregunta, e)
+        return {"titulo": f"{e['codigo']} · {e['nombre']}", "datos": datos, "resumen": resumen,
+                "enlaces": _enlaces(e),
+                "si_no_figura": {"texto": f"¿Lo sabés? Cargalo como especificación del {e['nombre']} y la próxima vez va a estar.",
+                                 "enlace": _cargar(e, sugerido)}}
     return _buscar_en_lo_anotado(pregunta)
 
+
+def sin_resultado(pregunta: str) -> dict | None:
+    """Nadie encontró nada: en vez de suponer, se ofrece cargar el dato como especificación de la máquina que corresponda."""
+    sugerido = _nombre_sugerido(pregunta)
+    if not sugerido:
+        return None
+    return {"titulo": "No está cargado",
+            "texto": f"No hay nada cargado en la app sobre «{sugerido}». Si nombrás la máquina, busco en sus datos "
+                     "(por ejemplo «… del ETR-50»). Si conocés el dato, cargalo como especificación de la máquina "
+                     "y la próxima vez lo contesto.",
+            "enlaces": [_cargar(None, sugerido)]}
+
+
+EJEMPLOS = ["¿Hay algo vencido?", "¿Qué le pasó al lavador de humos?", "¿Cuántas horas tiene el ETR-50?",
+            "¿Qué hay que hacer en el servicio A del ETR-50?", "¿Qué máquinas tuvieron problemas de rodamientos?",
+            "¿Cómo cargo un correctivo?"]
 
 try:
     from modulos.asistente import Fuente, registrar
 except ImportError:          # la app no trae el asistente: mantenimiento funciona igual
     registrar = None
 if registrar:
-    registrar(Fuente("mantenimiento", responder=responder, contexto=contexto))
+    registrar(Fuente("mantenimiento", responder=responder, contexto=contexto, sin_resultado=sin_resultado, ejemplos=EJEMPLOS))

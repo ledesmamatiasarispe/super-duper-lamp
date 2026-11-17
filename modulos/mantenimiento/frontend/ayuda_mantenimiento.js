@@ -108,6 +108,9 @@
         + 'Si dice <b>sin programar</b>, el instructivo existe pero todavía no se le asignó una frecuencia: no va a aparecer en el Cronograma.' },
       { el: () => boton('Ver instructivo'), titulo: 'Ver instructivo', texto: 'Abre el documento para leerlo o imprimirlo.' },
       { el: () => boton('Crear instructivo'), titulo: 'Crear instructivo', texto: 'Aparece en un equipo que todavía no tiene. Arranca con los datos del equipo ya puestos.' },
+      { el: () => boton('Especificaciones'), titulo: 'Especificaciones', texto: 'Los <b>datos técnicos</b> del equipo (aceite, correas, presiones, torques...) y <b>de dónde salen</b> '
+        + '(manual, placa, proveedor, técnico). Cualquiera los carga o corrige. La barra de preguntas contesta con estos datos, '
+        + 'y cuando falta uno ofrece cargarlo ahí mismo.' },
       { el: () => boton('Editar'), titulo: 'Editar el equipo', texto: 'Cambia sus datos o deja de usar un instructivo. Si todavía no tiene, le podés copiar el de un equipo parecido, o asignarle uno que haya quedado sin equipo.' },
       { el: () => boton('Marcar obsoleto'), titulo: 'Marcar obsoleto', texto: 'Para un equipo que <b>ya no está</b> (se vendió, se desarmó). Pide el motivo y da de baja sus tareas del Plan, pero <b>su historial queda guardado</b>. '
         + 'Si vuelve, se reactiva desde Ver ocultos (sus tareas se reactivan aparte, en el Plan).' },
