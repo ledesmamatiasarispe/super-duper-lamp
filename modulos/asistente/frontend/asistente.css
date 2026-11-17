@@ -1,0 +1,31 @@
+/* la barra de preguntas: una fila propia dentro de la barra de arriba (siempre visible), y el panel de la respuesta */
+.asis-form { order: 10; flex: 1 0 100%; display: flex; align-items: center; gap: .4rem; background: #fff; border-radius: 8px;
+  padding: .2rem .25rem .2rem .6rem; margin: .1rem 0 .15rem; }
+.asis-lupa { font-size: .95rem; opacity: .7; }
+.asis-form input { flex: 1; min-width: 0; border: 0; outline: 0; padding: .45rem .2rem; font: inherit; background: transparent; color: var(--texto); }
+.asis-form button { border-radius: 6px; white-space: nowrap; }
+.asis-enviar { background: var(--azul); color: #fff; border: 0; padding: .4rem .8rem; cursor: pointer; }
+.asis-micro { background: var(--gris-claro); border: 0; padding: .35rem .55rem; font-size: 1.05rem; cursor: pointer; }
+.asis-micro.escuchando { background: var(--rojo); color: #fff; animation: asis-latido 1s infinite; }
+@keyframes asis-latido { 50% { opacity: .55; } }
+
+/* flota debajo de la barra (que mide distinto según el ancho: --asis-alto lo pone asistente.js) sin mover la pantalla */
+.asis-panel { position: fixed; z-index: 6; top: calc(var(--asis-alto, 7.5rem) + .4rem); left: 0; right: 0; margin: 0 auto;
+  width: min(900px, calc(100% - 32px)); box-sizing: border-box;
+  background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px; padding: .8rem 1rem;
+  box-shadow: 0 8px 24px rgba(23, 50, 77, .18); max-height: 60vh; overflow-y: auto; }
+.asis-cabeza { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.asis-cabeza .link { margin-left: auto; font-size: 1.1rem; text-decoration: none; color: var(--sutil); }
+.asis-texto { margin: .5rem 0; line-height: 1.45; }
+.asis-texto p { margin: .3rem 0; }
+.asis-texto ul { margin: .3rem 0; padding-left: 1.3rem; }
+.asis-estado { font-size: .85rem; margin: .4rem 0 0; }
+.asis-aviso { background: var(--ambar-claro); color: var(--ambar); border-radius: 6px; padding: .35rem .6rem; font-size: .9rem; }
+.asis-enlaces { display: flex; gap: .4rem; flex-wrap: wrap; }
+.asis-enlaces:empty { display: none; }
+
+@media (max-width: 640px) {
+  .asis-enviar { padding: .4rem .6rem; }
+  .asis-panel { max-height: 70vh; }
+}
+@media print { .asis-form, .asis-panel { display: none !important; } }

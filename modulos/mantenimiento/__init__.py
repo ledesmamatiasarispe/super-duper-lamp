@@ -9,7 +9,7 @@ from pathlib import Path
 
 from nucleo.modulo import Menu, Modulo
 
-from . import esquema, personal_usuarios, servicios
+from . import asistente, esquema, personal_usuarios, servicios  # noqa: F401  (asistente: lo que sabe la barra de preguntas)
 from .rutas import router
 
 

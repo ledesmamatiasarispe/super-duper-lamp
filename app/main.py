@@ -11,8 +11,8 @@ nucleo.configurar(app=v.APP, nombre=v.NOMBRE, prefijo=v.PREFIJO, puerto=v.PUERTO
                   subtitulo=v.SUBTITULO, login=v.LOGIN, base=v.BASE, raiz=Path(__file__).resolve().parent.parent,
                   frontend=Path(__file__).resolve().parent / "frontend")
 
-from modulos import mantenimiento  # noqa: E402  (después de configurar)
+from modulos import asistente, mantenimiento  # noqa: E402  (después de configurar)
 from nucleo.aplicacion import crear_app  # noqa: E402
 
-MODULOS = [mantenimiento.MODULO]
+MODULOS = [mantenimiento.MODULO, asistente.MODULO]
 app = crear_app(MODULOS)

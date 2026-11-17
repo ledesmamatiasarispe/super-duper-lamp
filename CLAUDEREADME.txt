@@ -172,7 +172,9 @@ La idea en una línea:
   v1.1.1 (cumplido fuera de término: lo hecho en un mes posterior, antes de que vuelva a tocar, cubre el mes atrasado;
   cuenta como cumplido y se informa aparte el porcentaje a tiempo),
   v1.2.0 (Mapa: el dibujo pasa a ser un croquis como el de SolidWorks/Onshape: restricciones, cotas que mandan,
-  grados de libertad, recortar/extender/equidistancia/simetría, zoom, deshacer; núcleo de appbase 1.1.0).
+  grados de libertad, recortar/extender/equidistancia/simetría, zoom, deshacer; núcleo de appbase 1.1.0),
+  v1.3.0 (barra "Preguntá algo" arriba de todo: lo exacto lo contesta la app, lo demás una IA local con Ollama;
+  micrófono en la PC; módulo asistente de appbase).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -229,3 +231,17 @@ La idea en una línea:
     línea / sobre círculo; la inferencia agrega horizontal/vertical. Escribir la medida mientras se dibuja crea la cota.
   - Al enfocar un campo del panel NO se desplaza la página (focus preventScroll y panel con su propio scroll): si no, el
     dibujo se iba de la vista al poner una cota.
+
+11. ASISTENTE: LA BARRA "PREGUNTÁ ALGO" (v1.3.0, 2026-11-17)
+  - Módulo modulos/asistente de appbase (se trae con sincronizar.py --modulo asistente; NO se edita acá) + lo que sabe de
+    mantenimiento en modulos/mantenimiento/asistente.py.
+  - Reparto, decidido por una prueba con 10 preguntas reales y modelos locales chicos (Qwen 2.5 3B, Llama 3.2 3B):
+    lo exacto (vencidos, pendientes, lectura del horómetro, "¿cuál compresor?") lo contesta la app SIN IA; lo de texto
+    libre (qué le pasó, qué se le cambió, cómo se hace un servicio) lo redacta la IA con los datos YA RESUMIDOS
+    ("último servicio C: 6/7/2026 a las 466 h"). Sin el resumen, un modelo leyó mal una lista e inventó una fecha.
+  - La IA es Ollama, instalado aparte en D:\Ollama (modelos en D:\Ollama\modelos, variable OLLAMA_MODELS). Se configura
+    en Opciones (dirección y modelo). Sin Ollama, la barra muestra el resumen de la app con un aviso.
+  - Micrófono: reconocimiento de voz del navegador, solo en página segura (http://localhost en la PC). En el celular por
+    la red (http://192.168...) no hay botón: se dicta con el micrófono del teclado.
+  - PC de la oficina: i5-10400, 8 GB RAM, sin placa de video. Respuestas de 2 a 30 s (la primera, ~35 s: carga el modelo).
+
