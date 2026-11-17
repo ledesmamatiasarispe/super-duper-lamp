@@ -10,6 +10,7 @@ Todo se lee con los servicios del módulo (las mismas cuentas que Inicio y el Ma
 import re
 import unicodedata
 from datetime import date
+from pathlib import Path
 
 from . import servicios as s
 
@@ -263,31 +264,85 @@ def _datos_equipo(e: dict) -> tuple[str, str]:
     return "\n".join(lineas), "\n".join(resumen)
 
 
-def _buscar_en_lo_anotado(pregunta: str) -> dict | None:
-    """Sin una máquina en la pregunta: las reparaciones y novedades que comparten palabras con ella ("rodamientos")."""
-    buscadas = {p for p in _palabras(pregunta) if len(p) >= 4 and p not in _PALABRAS_VACIAS}
-    if not buscadas:
-        return None
+# ── fichas: un texto corto por cada cosa cargada, para la búsqueda del asistente (modulos/asistente/textos.py) ──
+# Se arman con los mismos servicios que las pantallas y el asistente las rehace solo cuando la base cambia. Una pregunta
+# que no nombra una máquina ("¿qué máquinas usan correa SPZ?", "¿quién arregló rodamientos?") se contesta con ellas.
+def _horas(n) -> str:
+    return f"{n:g} h" if isinstance(n, (int, float)) else f"{n} h"
 
-    def coincide(*textos):
-        palabras = _palabras(" ".join(t or "" for t in textos))
-        return any(b in palabras or b.rstrip("s") in palabras or b + "s" in palabras for b in buscadas)
 
-    hallados = [f"- {c['fecha']} {c['equipo_codigo']} {c['equipo']}: falla: {c['falla']}; acción: {(c.get('accion') or '-')[:200]}; "
-                f"repuestos: {c.get('repuestos') or '-'}"
-                for c in s.listar_correctivos() if coincide(c["falla"], c.get("causa"), c.get("accion"), c.get("repuestos"), c.get("observaciones"))]
-    hallados += [f"- {r['fecha']} {r['equipo_codigo']} {r['equipo']} (registro, servicio {r['seccion'][-1]}): {(r.get('novedades') or '')[:200]}"
-                 + (f"; repuestos: {r['repuestos']}" if r.get("repuestos") else "")
-                 for r in s.listar_registros(limite=2000) if coincide(r.get("novedades"), r.get("repuestos"))
-                 and not (r.get("novedades") or "").startswith("Cargado del")]
-    especificaciones = [f"{x['equipo_codigo']} {x['equipo']} {_linea_especificacion(x)[2:]}" for x in s.listar_especificaciones()
-                        if coincide(x["nombre"], x["valor"], x.get("notas"))]
-    if not (hallados or especificaciones):
-        return None
-    hallados = ([f"- Especificación de {x}" for x in especificaciones] + hallados)[:12]
-    return {"titulo": "Búsqueda en lo anotado", "datos": "LO ANOTADO QUE COINCIDE CON LA PREGUNTA:\n" + "\n".join(hallados),
-            "resumen": "Lo anotado que coincide:\n" + "\n".join(hallados),
-            "enlaces": [{"texto": "Correctivos", "ir": "correctivos"}, {"texto": "Registros", "ir": "registros"}]}
+def fichas() -> list[dict]:
+    equipos = s.listar_equipos(incluir_baja=True)
+    instructivos = {i["id"]: i for i in s.listar_instructivos()}
+    tareas = s.listar_tareas()
+    lista = []
+    for e in equipos:
+        plan = [f"servicio {t['seccion'][-1]} ({t['seccion']}): "
+                + (f"cada {t['cada_horas']} horas" if t.get("cada_horas") else (t.get("frecuencia") or "-"))
+                + (f", responsable {t['responsable']}" if t.get("responsable") else "")
+                for t in tareas if t["equipo_id"] == e["id"]]
+        its = [instructivos[i]["codigo"] for i in e.get("instructivo_ids") or [] if i in instructivos]
+        lista.append({"tipo": "Equipo", "titulo": f"{e['codigo']} {e['nombre']}" + ("" if e["activo"] else " (obsoleto)"),
+                      "ir": "equipos",
+                      "texto": f"área {e.get('sector') or '-'}; marca/modelo {e.get('marca_modelo') or '-'}; "
+                               f"{'con' if e.get('usa_horometro') else 'sin'} horómetro; "
+                               f"instructivo {', '.join(its) or 'ninguno'}; plan: {'; '.join(plan) or 'nada programado'}"
+                               + (f"; dado de baja: {e['motivo_baja']}" if not e["activo"] and e.get("motivo_baja") else "")})
+    usado_por = {}
+    for e in equipos:
+        for i in e.get("instructivo_ids") or []:
+            usado_por.setdefault(i, []).append(f"{e['codigo']} {e['nombre']}")
+    for it_id, resumen in instructivos.items():
+        it = s.obtener_instructivo(it_id)
+        de = f"{it['codigo']} · {it['titulo']}" + ("" if it.get("vigente", 1) else " (obsoleto)")
+        equipos_it = ", ".join(usado_por.get(it_id, [])) or "(no está asignado a ningún equipo)"
+        if it.get("seguridad"):
+            lista.append({"tipo": "Seguridad del instructivo", "titulo": de, "ir": f"instructivos/{it_id}",
+                          "texto": f"equipo {equipos_it}. " + " ".join(str(it["seguridad"]).split())})
+        for sec in it.get("secciones") or []:
+            pasos = [(a["texto"].rstrip(":") + ":") if a.get("es_grupo") else a["texto"] + (f" ({a['detalle']})" if a.get("detalle") else "")
+                     for a in sec.get("actividades") or []]
+            lista.append({"tipo": "Sección de instructivo", "titulo": f"{de} · servicio {sec['letra']} ({sec['codigo']})",
+                          "ir": f"instructivos/{it_id}", "texto": f"equipo {equipos_it}. Actividades: " + "; ".join(pasos)})
+        if it.get("repuestos"):
+            lista.append({"tipo": "Repuestos del instructivo", "titulo": de, "ir": f"instructivos/{it_id}",
+                          "texto": f"equipo {equipos_it}. " + "; ".join(
+                              r["nombre"] + (f" x{r['cantidad']:g}" if r.get("cantidad") is not None else "") for r in it["repuestos"])})
+    for c in s.listar_correctivos():
+        lista.append({"tipo": "Correctivo", "titulo": f"{_fecha(c['fecha'])} {c['equipo_codigo']} {c['equipo']}", "ir": "correctivos",
+                      "texto": f"falla: {c['falla']}" + (f"; causa: {c['causa']}" if c.get("causa") else "")
+                               + f"; acción: {c.get('accion') or '-'}"
+                               + (f"; repuestos: {c['repuestos']}" if c.get("repuestos") else "")
+                               + (f"; parada: {_horas(c['horas_parada'])}" if c.get("horas_parada") is not None else "")
+                               + f"; hizo: {c.get('realizado_por_nombre') or c.get('realizado_por') or 'sin dato'}"
+                               + ("; requiere acción del SGC" if c.get("accion_sgc") else "")
+                               + (f"; observaciones: {c['observaciones']}" if c.get("observaciones") else "")})
+    for r in s.listar_registros(limite=5000):
+        novedades = r.get("novedades") or ""
+        if novedades.startswith("Cargado del"):      # las cargas masivas del cronograma no dicen nada del trabajo
+            novedades = ""
+        if not (novedades or r.get("repuestos") or r["resultado"] not in ("Realizado",)):
+            continue
+        lista.append({"tipo": "Registro de mantenimiento", "ir": "registros",
+                      "titulo": f"{_fecha(r['fecha'])} {r['equipo_codigo']} {r['equipo']} servicio {r['seccion'][-1]}",
+                      "texto": f"resultado {r['resultado']}"
+                               + (f" (para el {_fecha(r['reprogramado_para'])})" if r.get("reprogramado_para") else "")
+                               + (f"; novedades: {novedades}" if novedades else "")
+                               + (f"; repuestos: {r['repuestos']}" if r.get("repuestos") else "")
+                               + f"; hizo: {r.get('realizado_por_nombre') or r.get('realizado_por') or 'sin dato'}"})
+    for x in s.listar_especificaciones():
+        lista.append({"tipo": "Especificación", "titulo": f"{x['equipo_codigo']} {x['equipo']} · {x['nombre']}", "ir": "equipos",
+                      "texto": _linea_especificacion(x)[2:]})
+    for a in s.listar_areas():
+        de_area = [f"{e['codigo']} {e['nombre']}" for e in equipos if e.get("area_id") == a["id"] and e["activo"]]
+        lista.append({"tipo": "Área", "titulo": a["nombre"] + ("" if a.get("activo", 1) else " (dada de baja)"), "ir": "areas",
+                      "texto": f"{len(de_area)} equipos: " + (", ".join(de_area) or "ninguno")})
+    for p in s.listar_personas():
+        lista.append({"tipo": "Persona", "titulo": p["nombre"], "ir": "personal",
+                      "texto": ("mantenimiento interno" if p.get("categoria") == "interno" else "proveedor externo")
+                               + (f"; contacto: {p['contacto']}" if p.get("contacto") else "")
+                               + ("" if p.get("activo", 1) else "; dado de baja")})
+    return lista
 
 
 def contexto(pregunta: str) -> dict | None:
@@ -300,7 +355,7 @@ def contexto(pregunta: str) -> dict | None:
                 "enlaces": _enlaces(e),
                 "si_no_figura": {"texto": f"¿Lo sabés? Cargalo como especificación del {e['nombre']} y la próxima vez va a estar.",
                                  "enlace": _cargar(e, sugerido)}}
-    return _buscar_en_lo_anotado(pregunta)
+    return None     # sin una máquina: el asistente busca en las fichas (ver fichas())
 
 
 def sin_resultado(pregunta: str) -> dict | None:
@@ -330,5 +385,6 @@ try:
 except ImportError:          # la app no trae el asistente: mantenimiento funciona igual
     registrar = None
 if registrar:
+    _IA = Path(__file__).resolve().parent / "ia"     # la guía de uso y los sinónimos, para la IA
     registrar(Fuente("mantenimiento", responder=responder, contexto=contexto, sin_resultado=sin_resultado, temas=temas,
-                     ejemplos=EJEMPLOS))
+                     fichas=fichas, guia=_IA / "guia.md", sinonimos=_IA / "sinonimos.txt", ejemplos=EJEMPLOS))

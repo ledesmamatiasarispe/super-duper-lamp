@@ -22,7 +22,7 @@
 .asis-turno summary { cursor: pointer; padding: .2rem 0; color: var(--sutil); font-size: .92rem; }
 .asis-turno summary .chip { font-size: .75rem; }
 .asis-turno .asis-texto { font-size: .92rem; color: var(--sutil); margin: .2rem 0 .5rem; }
-.asis-actual { border-top: 1px solid var(--borde); padding-top: .4rem; }
+.asis-anteriores + .asis-actual { border-top: 1px solid var(--borde); padding-top: .4rem; }
 .asis-sigue { font-size: .85rem; margin: .3rem 0 0; }
 .asis-sigue .link { font-size: .85rem; }
 .asis-texto { margin: .5rem 0; line-height: 1.45; }
@@ -34,6 +34,13 @@
   display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .asis-enlaces { display: flex; gap: .4rem; flex-wrap: wrap; }
 .asis-enlaces:empty { display: none; }
+
+/* Opciones → "Ver lo que lee la IA" */
+.asis-textos { margin: .5rem 0; border: 1px solid var(--borde); border-radius: 8px; padding: .4rem .7rem; }
+.asis-textos summary { cursor: pointer; }
+.asis-textos h4 { margin: .7rem 0 .2rem; }
+.asis-pre { white-space: pre-wrap; margin: 0 0 .4rem; font-size: .92rem; }
+.asis-fichas { font-size: .9rem; max-height: 50vh; overflow-y: auto; padding-left: 1.2rem; }
 
 @media (max-width: 640px) {
   .asis-enviar { padding: .4rem .6rem; }

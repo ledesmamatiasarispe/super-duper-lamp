@@ -28,6 +28,8 @@ from nucleo.db import transaccion
 from nucleo.errores import ErrorDeNegocio
 from nucleo.marca import guardar_config, leer_config
 
+from . import textos
+
 URL_DEFECTO = "http://127.0.0.1:11434"
 MODELO_DEFECTO = "qwen2.5:3b"
 _CLAVE_URL, _CLAVE_MODELO = "asistente_url", "asistente_modelo"
@@ -37,15 +39,22 @@ MAX_PREGUNTA = 300
 # donde los DATOS de una máquina ya ocupan bastante).
 MAX_TURNOS, MAX_CARACTERES_HISTORIAL, MAX_RESPUESTA_RECORDADA = 6, 1800, 450
 
-SISTEMA = """Sos el asistente de la app. Respondés en español rioplatense, claro y en pocas oraciones.
-Reglas:
-- Usá SOLO la información de DATOS. No inventes fechas, horas, nombres, cantidades ni repuestos.
-- Las preguntas y respuestas anteriores de la conversación sirven para entender a qué se refiere la pregunta nueva;
-  los datos para contestarla son los de DATOS.
-- Los números ya están calculados en DATOS: copialos tal cual, no hagas cuentas.
-- Si lo que se pregunta no figura en DATOS, decí "No figura en la app" y nada más.
-- Cuando des una fecha o un dato, decí de dónde sale (registro, correctivo, instructivo, horómetro...).
-- No repitas los DATOS enteros: contestá la pregunta."""
+# La IA ELIGE, no redacta: recibe los datos en fragmentos numerados y contesta con los números de los que sirven (que
+# la app muestra tal cual) y como mucho una oración corta. Escribir es lo caro en una PC sin placa de video (unos 7
+# tokens por segundo; leer es 10 a 100 veces más rápido): una respuesta así son ~20 tokens en vez de 100-200, y lo que se
+# muestra es copia fiel de la app, sin fechas ni números reescritos.
+MAX_PARTES = 5
+SISTEMA = """Sos el asistente de una app. Te paso FRAGMENTOS numerados con lo que dice la app y una PREGUNTA.
+Tu trabajo es ELEGIR, no escribir. Contestás en JSON:
+- "partes": los números de los fragmentos que contestan la pregunta, el más importante primero (como mucho 5).
+  La app los muestra tal cual, así que no hace falta repetirlos.
+- "respuesta": UNA oración corta (máximo 20 palabras, español rioplatense) que conteste directo, usando SOLO lo que
+  dicen esos fragmentos. Puede quedar vacía si los fragmentos ya lo dicen todo.
+- Si ningún fragmento contesta la pregunta: "partes": [] y "respuesta": "No figura en la app".
+Nunca inventes fechas, horas, nombres, cantidades ni repuestos: los números ya están calculados en los fragmentos.
+Las preguntas anteriores de la conversación sirven para entender a qué se refiere la pregunta nueva."""
+_FORMATO = {"type": "object", "required": ["partes", "respuesta"],
+            "properties": {"partes": {"type": "array", "items": {"type": "integer"}}, "respuesta": {"type": "string"}}}
 
 
 @dataclass
@@ -64,6 +73,10 @@ class Fuente:
                                  nombra nada ("¿y el aceite?"), se le agrega el tema de la anterior: "¿y el aceite? (EQ-001)".
                                  Por eso el tema tiene que ser algo que la misma fuente reconozca escrito entre paréntesis.
       ejemplos: preguntas que funcionan bien, para la respuesta a "ayuda".
+      fichas() -> [{"tipo", "titulo", "texto", "ir"}]   un texto corto y ya armado por cada cosa cargada (una máquina, un
+                                 correctivo...). Se buscan cuando nadie dio un contexto (ver textos.py).
+      guia: ruta a un .md con cómo se usa lo del módulo, para la IA (secciones "## ...", ver textos.py).
+      sinonimos: ruta a un .txt con palabras que en el módulo quieren decir lo mismo (un grupo por renglón).
     Un enlace es {"texto": "Ver instructivo", "ir": "instructivos/5"} (la pantalla hace irA) o
     {"texto": "Cargar especificación", "accion": "especificacion", "datos": {...}}: la pantalla llama a la función que el
     módulo registró en window.asisAcciones.especificacion(datos). La acción "preguntar" ({"pregunta"}) es del asistente."""
@@ -73,6 +86,9 @@ class Fuente:
     sin_resultado: Callable[[str], dict | None] | None = None
     ejemplos: list[str] = field(default_factory=list)
     temas: Callable[[str], list[str]] | None = None
+    fichas: Callable[[], list[dict]] | None = None
+    guia: Path | str | None = None
+    sinonimos: Path | str | None = None
 
 
 FUENTES: list[Fuente] = []
@@ -219,18 +235,21 @@ def reiniciar(usuario: dict, espera: float = 45) -> dict:
                          "o reiniciá la PC.")
 
 
-def _ia(pregunta: str, datos: str, a: dict, historial: list | None = None) -> Iterator[str]:
-    """Los pedazos de texto a medida que la IA los escribe (Ollama, /api/chat en modo stream). La conversación va antes,
-    como preguntas y respuestas; los DATOS solo en la pregunta de ahora (son los vigentes)."""
+def _ia(pregunta: str, fragmentos: list[dict], a: dict, historial: list | None = None) -> dict:
+    """Le pide a la IA (Ollama, /api/chat) que elija: {"partes": [números], "respuesta": "..."}. El JSON lo fuerza
+    Ollama con el esquema (_FORMATO). La conversación va antes, como preguntas y respuestas; los fragmentos solo en la
+    pregunta de ahora (son los vigentes)."""
     anteriores = []
     for t in historial or []:
         anteriores += [{"role": "user", "content": t["pregunta"]}, {"role": "assistant", "content": t["respuesta"]}]
-    cuerpo = {"model": a["modelo"], "stream": True, "keep_alive": "30m",
-              "options": {"temperature": 0.1, "num_ctx": 3072},
+    lista = "\n".join(f"[{i}] {f['grupo'] + ' › ' if f['grupo'] else ''}{f['texto']}" for i, f in enumerate(fragmentos, 1))
+    cuerpo = {"model": a["modelo"], "stream": True, "keep_alive": "30m", "format": _FORMATO,
+              "options": {"temperature": 0.1, "num_ctx": 3072, "num_predict": 160},
               "messages": [{"role": "system", "content": SISTEMA}, *anteriores,
-                           {"role": "user", "content": f"DATOS:\n{datos}\n\nPREGUNTA: {pregunta}"}]}
+                           {"role": "user", "content": f"FRAGMENTOS:\n{lista}\n\nPREGUNTA: {pregunta}"}]}
     pedido = urllib.request.Request(a["url"] + "/api/chat", data=json.dumps(cuerpo).encode(),
                                     headers={"Content-Type": "application/json"})
+    escrito = []
     with urllib.request.urlopen(pedido, timeout=300) as r:
         for linea in r:
             if not linea.strip():
@@ -238,10 +257,64 @@ def _ia(pregunta: str, datos: str, a: dict, historial: list | None = None) -> It
             parte = json.loads(linea)
             if parte.get("error"):
                 raise RuntimeError(parte["error"])
-            if parte.get("message", {}).get("content"):
-                yield parte["message"]["content"]
+            escrito.append(parte.get("message", {}).get("content") or "")
             if parte.get("done"):
-                return
+                break
+    try:
+        elegido = json.loads("".join(escrito))
+    except ValueError:
+        raise RuntimeError("la IA no contestó en el formato pedido") from None
+    if not isinstance(elegido, dict):
+        raise RuntimeError("la IA no contestó en el formato pedido")
+    return elegido
+
+
+def _fragmentos(contexto: dict) -> list[dict]:
+    """Los pedazos que la IA puede elegir: los que trae el contexto ({grupo, texto}) o, si no, los renglones de sus
+    `datos`. Un renglón que no empieza con "- " es un título ("PLAN (tareas):") y se lo pone como grupo de los "- "
+    que lo siguen, para que cada pedazo se entienda solo."""
+    if contexto.get("fragmentos"):
+        return [{"grupo": str(f.get("grupo") or ""), "texto": str(f.get("texto") or "")} for f in contexto["fragmentos"]
+                if f.get("texto")]
+    salida, grupo = [], ""
+    for renglon in str(contexto.get("datos") or "").splitlines():
+        renglon = renglon.strip()
+        if not renglon:
+            continue
+        if renglon.startswith("- "):
+            salida.append({"grupo": grupo, "texto": renglon[2:]})
+            continue
+        titulo, dos_puntos, resto = renglon.partition(":")
+        # "PLAN (tareas)" -> "Plan (tareas)", "INSTRUCTIVO IT01 (...)" -> "Instructivo IT01 (...)": los códigos quedan
+        titulo = " ".join(p.lower() if p.isalpha() and p.isupper() else p for p in titulo.split())
+        titulo = titulo[:1].upper() + titulo[1:]
+        grupo = titulo if dos_puntos and len(titulo) <= 60 else ""
+        if resto.strip() or not dos_puntos:
+            salida.append({"grupo": "", "texto": renglon})
+    return salida
+
+
+def _fecha_legible(t: str) -> str:
+    return re.sub(r"\b(\d{4})-(\d{2})-(\d{2})\b", r"\3/\2/\1", t)
+
+
+def _componer(elegido: dict, fragmentos: list[dict]) -> str:
+    """El texto que se muestra: la oración de la IA y, debajo, los fragmentos que eligió, tal cual (los del mismo grupo
+    juntos). Si no eligió ninguno, "No figura en la app" (y la pantalla ofrece cargar el dato, si el módulo lo propone)."""
+    numeros = []
+    for n in elegido.get("partes") or []:
+        if isinstance(n, int) and 1 <= n <= len(fragmentos) and n not in numeros:
+            numeros.append(n)
+    numeros = numeros[:MAX_PARTES]
+    respuesta = _fecha_legible(" ".join(str(elegido.get("respuesta") or "").split())[:300])
+    if not numeros:
+        return respuesta if "no figura" in respuesta.lower() else "No figura en la app."
+    grupos: dict[str, list[str]] = {}
+    for n in numeros:
+        f = fragmentos[n - 1]
+        grupos.setdefault(f["grupo"], []).append(_fecha_legible(f["texto"]))
+    lineas = [f"- **{g}:** {' '.join(t)}" if g else f"- {' '.join(t)}" for g, t in grupos.items()]
+    return (respuesta + "\n" if respuesta else "") + "\n".join(lineas)
 
 
 # ── preguntar ──
@@ -258,11 +331,12 @@ _SALUDO = re.compile(r"^\W*(hola|buenas|buen dia|buenos dias|buenas tardes|ayuda
 _DE_USO = re.compile(r"\b(como (cargo|registro|agrego|anoto|creo|borro|elimino|edito|modifico|imprimo|cambio|uso|veo|encuentro|"
                      r"marco|programo|doy de (alta|baja)|reactivo|subo|asigno|dibujo|ubico|busco|reinicio)|como se (carga|registra|"
                      r"agrega|anota|crea|borra|elimina|edita|modifica|imprime|cambia|usa|ve|programa|marca|sube|asigna|dibuja|ubica)|"
-                     r"donde (veo|cargo|esta|estan|se ve|se carga|encuentro|anoto)|para que sirve|que significa|que quiere decir)\b")
-_VACIAS = set("como cargo registro agrego creo donde esta estan para que sirve significa quiere decir hago hace hacer "
-              "una uno unos unas los las del con por sobre esto este esta".split())
-
-
+                     r"donde (veo|cargo|esta|estan|se ve|se carga|encuentro|anoto)|para que sirve|que significa|que quiere decir|"
+                     r"como (funciona|se calcula|se cuenta|anda)|explicame|"
+                     r"que pasa (si|cuando)|"
+                     r"(como|donde) (lo |la |los |las |le )(cargo|registro|agrego|anoto|borro|elimino|edito|cambio|veo|imprimo)|"
+                     r"(quiero|tengo que|necesito|como hago para|como puedo|donde puedo) (anotar|cargar|registrar|agregar|"
+                     r"borrar|eliminar|editar|modificar|cambiar|imprimir|ver|dar de (alta|baja)|programar|reactivar))\b")
 def _ayuda(pregunta: str) -> dict:
     ejemplos = [e for f in FUENTES for e in f.ejemplos][:6]
     texto = "\n".join([
@@ -273,32 +347,6 @@ def _ayuda(pregunta: str) -> dict:
     ] + (["Probá con alguna de estas:"] if ejemplos else []))
     return {"titulo": "Ayuda", "texto": texto,
             "enlaces": [{"texto": e, "accion": "preguntar", "datos": {"pregunta": e}} for e in ejemplos]}
-
-
-def _manual(pregunta: str, ayuda: list) -> dict | None:
-    """Los pasos de la Ayuda (los manda la pantalla: Ayuda.pasos de cada módulo) que comparten palabras con la pregunta."""
-    buscadas = {p for p in re.findall(r"[a-z0-9]+", _norm(pregunta)) if len(p) >= 4 and p not in _VACIAS}
-    if not buscadas or not isinstance(ayuda, list):
-        return None
-
-    def puntos(paso):
-        palabras = set(re.findall(r"[a-z0-9]+", _norm(f"{paso.get('pantalla', '')} {paso.get('titulo', '')} {paso.get('texto', '')}")))
-        return sum(1 for b in buscadas if b in palabras or b.rstrip("s") in palabras or b + "s" in palabras)
-    pasos = [p for p in ayuda[:400] if isinstance(p, dict)]
-    elegidos = sorted((x for x in pasos if puntos(x)), key=puntos, reverse=True)[:6]
-    if not elegidos:
-        return None
-    lineas = [f"- Pantalla {validar.corto(p.get('pantalla'), 40)} · {validar.corto(p.get('titulo'), 120)}: "
-              f"{validar.corto(p.get('texto'), 700)}" for p in elegidos]
-    vistas = []
-    for p in elegidos:
-        v = validar.corto(p.get("pantalla"), 40)
-        if v and v not in vistas and re.fullmatch(r"[a-z_]+", v):
-            vistas.append(v)
-    salto = "\n"
-    return {"titulo": "Cómo se usa la app", "datos": "AYUDA DE LA APP (cómo se usa cada pantalla):" + salto + salto.join(lineas),
-            "resumen": "Lo que dice la Ayuda:" + salto + salto.join(lineas),
-            "enlaces": [{"texto": f"Ir a {v}", "ir": v} for v in vistas[:3]]}
 
 
 def _historial(historial) -> list[dict]:
@@ -376,8 +424,17 @@ def preguntar(pregunta, ayuda: list | None = None, historial: list | None = None
             yield from directa(r)
             return
 
-    manual = _manual(q, ayuda or []) if de_uso else None
+    # de USO: la guía y la Ayuda, buscando por lo que importa ("¿cómo cargo una nota?" busca "una nota", no "cargo")
+    manual = textos.manual(_DE_USO.sub(" ", _norm(q)), ayuda) if de_uso else None
     contextos = [manual] if manual else [x for x in (f.contexto(q) for f in FUENTES if f.contexto) if x]
+    if not contextos:                     # no nombra nada en particular: las fichas de todo lo cargado
+        contextos = [x for x in [textos.buscar_fichas(q)] if x]
+        # si la IA no encuentra el dato en las fichas, se ofrece lo mismo que cuando no se encontró nada (cargarlo)
+        propuesta = next((r for r in (f.sin_resultado(q) for f in FUENTES if f.sin_resultado and contextos) if r), None)
+        if propuesta and propuesta.get("enlaces"):
+            contextos[0]["si_no_figura"] = {"texto": propuesta["texto"], "enlace": propuesta["enlaces"][0]}
+    if not contextos:                     # último recurso: quizás es de uso aunque no lo parezca ("quiero anotar una rotura")
+        contextos = [x for x in [textos.manual(q, ayuda, minimo=2)] if x]
     if not contextos:
         for f in FUENTES:
             r = f.sin_resultado(q) if f.sin_resultado else None
@@ -400,13 +457,11 @@ def preguntar(pregunta, ayuda: list | None = None, historial: list | None = None
 
     yield {"tipo": "inicio", "modo": "ia", "titulo": titulo, "enlaces": enlaces, "aviso": "", "si_no_figura": si_no_figura,
            "tema": tema, "sigue": sigue}
-    escrito = False
+    fragmentos = [f for x in contextos for f in _fragmentos(x)]
     try:
-        for pedazo in _ia(q, doble.join(x["datos"] for x in contextos), est, charla):
-            escrito = True
-            yield {"tipo": "texto", "texto": pedazo}
+        yield {"tipo": "texto", "texto": _componer(_ia(q, fragmentos, est, charla), fragmentos)}
     except (OSError, ValueError, RuntimeError) as e:
         _ESTADO.clear()
         yield {"tipo": "aviso", "aviso": f"La IA local no respondió ({e}). Esto es lo que dice la app:"}
-        yield {"tipo": "texto", "texto": (doble if escrito else "") + resumen}
+        yield {"tipo": "texto", "texto": resumen}
     yield fin()

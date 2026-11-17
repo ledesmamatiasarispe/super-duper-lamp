@@ -93,6 +93,10 @@ def test_especificaciones(sin_ia):
     inicio, texto = preguntar(sin_ia, "¿qué grasa se usa en los rodillos?")
     assert inicio["modo"] == "nada" and "No hay nada cargado" in texto
     assert inicio["enlaces"][0]["datos"] == {"equipo_id": None, "nombre": "Grasa"}
+    # sin máquina pero con algo en las fichas: se busca ahí, y si la IA no lo encuentra, también se ofrece cargarlo
+    inicio, texto = preguntar(sin_ia, "¿qué aceite usan los rodillos?")
+    assert inicio["titulo"] == "Búsqueda en lo anotado" and "ISO VG 46" in texto
+    assert inicio["si_no_figura"]["enlace"]["datos"] == {"equipo_id": None, "nombre": "Aceite"}
 
     # corregir y borrar (borrar es de administrador)
     r = sin_ia.put(f"/api/especificaciones/{aceite['id']}", json={"nombre": "Aceite", "valor": "ISO VG 68", "fuente": "proveedor"})
@@ -104,10 +108,14 @@ def test_especificaciones(sin_ia):
 def test_ayuda_y_uso_de_la_app(sin_ia):
     inicio, texto = preguntar(sin_ia, "ayuda")
     assert inicio["titulo"] == "Ayuda" and any(b["datos"]["pregunta"] == "¿Hay algo vencido?" for b in inicio["enlaces"])
-    ayuda = [{"pantalla": "correctivos", "titulo": "Registrar correctivo", "texto": "Botón Registrar correctivo: qué falló y qué se hizo."}]
-    r = sin_ia.post("/api/asistente/preguntar", json={"pregunta": "¿Cómo cargo un correctivo?", "ayuda": ayuda})
+    # la guía de mantenimiento (ia/guia.md) ...
+    inicio, texto = preguntar(sin_ia, "¿Cómo cargo un correctivo?")
+    assert inicio["titulo"] == "Cómo se usa la app" and "Correctivos" in texto and {"texto": "Ir a correctivos", "ir": "correctivos"} in inicio["enlaces"]
+    # ... y la Ayuda de las pantallas, que manda el navegador
+    ayuda = [{"pantalla": "correctivos", "titulo": "Botón violeta", "texto": "El botón violeta exporta los correctivos a Excel."}]
+    r = sin_ia.post("/api/asistente/preguntar", json={"pregunta": "¿Dónde veo el botón violeta?", "ayuda": ayuda})
     evs = [json.loads(x) for x in r.text.splitlines() if x.strip()]
-    assert evs[0]["titulo"] == "Cómo se usa la app" and "qué falló" in "".join(e.get("texto", "") for e in evs if e["tipo"] == "texto")
+    assert evs[0]["titulo"] == "Cómo se usa la app" and "exporta" in "".join(e.get("texto", "") for e in evs if e["tipo"] == "texto")
 
 
 def test_borrar_un_equipo_cargado_por_error_se_lleva_sus_especificaciones(sin_ia):
@@ -136,6 +144,28 @@ def test_la_conversacion_sigue_con_la_misma_maquina(sin_ia):
     assert "¿Por cuál" in con("¿y el compresor?", charla)[1]
     # "Preguntar en general"
     assert con("¿y cuántas horas tiene?", charla, sin_tema=True)[0]["sigue"] is None
+
+
+def test_guia_sinonimos_y_fichas_de_mantenimiento(sin_ia):
+    t = sin_ia.get("/api/asistente/textos").json()
+    titulos = [s["titulo"] for s in t["guia"]]
+    assert "Cronograma anual" in titulos and "Correctivos" in titulos and "Opciones" in titulos   # la de mantenimiento y la común
+    assert any("rulem" in " ".join(g) and "rodamient" in " ".join(g) for g in t["sinonimos"])
+    assert {"Equipo", "Sección de instructivo", "Área", "Persona"} <= set(t["por_tipo"])
+
+    # de uso: la guía, aunque no diga "cómo cargo"
+    for q, pantalla in [("¿qué significa la cruz roja en el cronograma?", "cronograma"),
+                        ("se rompió una correa, ¿dónde lo anoto?", "correctivos"),
+                        ("¿qué es el cumplimiento?", "cronograma")]:
+        inicio = preguntar(sin_ia, q)[0]
+        assert inicio["titulo"] == "Cómo se usa la app" and {"texto": f"Ir a {pantalla}", "ir": pantalla} in inicio["enlaces"], q
+
+    # las fichas se rehacen solas: un correctivo recién cargado ya se encuentra, y por un sinónimo
+    granalla = equipo(sin_ia, "EQ-002")
+    sin_ia.post(f"/api/equipos/{granalla['id']}/correctivos", json={"fecha": HOY, "falla": "Rulemán del rodillo trabado",
+                                                                   "accion": "Se cambió"})
+    inicio, texto = preguntar(sin_ia, "¿qué máquinas tuvieron problemas con cojinetes?")
+    assert inicio["titulo"] == "Búsqueda en lo anotado" and "Rulemán del rodillo trabado" in texto
 
 
 def test_la_pregunta_se_valida(api):

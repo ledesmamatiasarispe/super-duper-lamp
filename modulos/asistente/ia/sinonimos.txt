@@ -1,0 +1,22 @@
+# Sinónimos comunes a todas las apps: un grupo por renglón, separado por comas. Cuando una pregunta dice una palabra
+# del grupo, se busca también con las demás. Se compara sin acentos y por la raíz ("cargo" = "cargar" = "carga").
+# Cada módulo suma los suyos en su propio archivo (Fuente.sinonimos). Dos grupos con una palabra en común se juntan.
+cargar, anotar, ingresar, agregar, registrar, asentar, dar de alta
+borrar, eliminar, quitar, sacar, suprimir
+dar de baja, desactivar, ocultar, obsoleto
+reactivar, volver a activar, dar de alta de nuevo
+modificar, editar, cambiar, corregir, actualizar
+buscar, encontrar, ubicar
+ver, mirar, consultar, revisar
+imprimir, pdf, sacar en papel
+contraseña, clave, password, contrasena
+usuario, cuenta, login
+administrador, admin, jefe
+opciones, configuración, ajustes, configurar
+pantalla, pestaña, solapa, sección de la app
+fecha, día, cuándo
+hora, horario
+persona, empleado, operario, operador
+proveedor, contratista, externo, tercero
+problema, inconveniente, falla, anda mal, no funciona
+foto, imagen, archivo, adjunto

@@ -5,7 +5,7 @@ dist/<APP>-v<VERSION>-win64.zip con su .sha256 (el actualizador no instala sin �
     .venv/Scripts/python.exe herramientas/compilar.py --tag v1.2.0    (en GitHub Actions: exige que el tag sea la versión)
 
 Sirve igual para cualquier app hecha sobre el núcleo: toma APP y VERSION de app/version.py, y mete en el paquete el
-frontend del núcleo y el de cada módulo (modulos/*/frontend). herramientas/icono.ico, si está, es el ícono del .exe.
+frontend del núcleo y el de cada módulo (modulos/*/frontend), y los textos del asistente (modulos/*/ia). herramientas/icono.ico, si está, es el ícono del .exe.
 Para publicar una versión: subir VERSION en app/version.py, y crear y empujar el tag "v" + VERSION; el workflow
 .github/workflows/release.yml compila y arma el release. La carpeta data/ nunca va en el paquete: es de cada instalación."""
 import argparse
@@ -32,7 +32,7 @@ def main():
     dist, build = RAIZ / "dist", RAIZ / "build"
     shutil.rmtree(dist / APP, ignore_errors=True)
     datos = ["--add-data", f"{RAIZ / 'nucleo' / 'frontend'}{SEP}nucleo/frontend"]
-    for f in sorted((RAIZ / "modulos").glob("*/frontend")):
+    for f in sorted([*(RAIZ / "modulos").glob("*/frontend"), *(RAIZ / "modulos").glob("*/ia")]):   # ia/: guía y sinónimos
         datos += ["--add-data", f"{f}{SEP}{f.relative_to(RAIZ).as_posix()}"]
     if (RAIZ / "app" / "frontend").is_dir():
         datos += ["--add-data", f"{RAIZ / 'app' / 'frontend'}{SEP}app/frontend"]

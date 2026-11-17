@@ -30,6 +30,13 @@ def estado(u: dict = Usuario):
     return servicios.estado()
 
 
+@router.get("/textos")
+def textos(u: dict = Usuario):
+    """Lo que lee la IA (guía, sinónimos y fichas), para verlo desde Opciones. Las fichas son datos que cualquier
+    usuario ya ve en las pantallas."""
+    return servicios.textos.todo()
+
+
 @router.post("/reiniciar")
 def reiniciar(u: dict = Admin):
     return servicios.reiniciar(u)

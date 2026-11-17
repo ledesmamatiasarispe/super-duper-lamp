@@ -1,0 +1,25 @@
+# Sinónimos de mantenimiento (se suman a los comunes del asistente). Un grupo por renglón, separado por comas.
+# Se compara sin acentos y por la raíz: no hace falta poner plurales ni "rompió/roto" si comparten raíz.
+correctivo, reparación, arreglo, rotura, roto, avería, falla, se rompió, urgencia
+preventivo, mantenimiento programado, service, servicio
+instructivo, procedimiento, checklist, manual de mantenimiento, hoja de mantenimiento
+equipo, máquina, maquinaria
+horómetro, contador de horas, horas de uso, horas de marcha, horas de trabajo
+área, sector, nave, zona
+plano, mapa, croquis, layout
+tarea, orden de trabajo, ot
+frecuencia, periodicidad, cada cuánto
+vencido, atrasado, retrasado, demorado
+pendiente, por hacer, falta hacer
+reprogramado, postergado, pospuesto
+repuesto, insumo, recambio
+rodamiento, rulemán, ruleman, ruliman, cojinete, bolillero
+correa, banda
+aceite, lubricante
+grasa, engrase, engrasar
+especificación, dato técnico, ficha técnica, característica técnica
+parada, detenido, sin funcionar, fuera de servicio
+cumplimiento, porcentaje cumplido, indicador
+horas hombre, mano de obra
+sgc, sistema de calidad, rac, acción correctiva
+obsoleto, fuera de uso, desafectado

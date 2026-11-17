@@ -178,7 +178,9 @@ La idea en una línea:
   v1.4.0 (especificaciones técnicas por equipo; la barra contesta "ayuda" y el uso de la app, ofrece cargar lo que
   no figura, botones para elegir la máquina; Opciones -> Reiniciar la IA),
   v1.5.0 (la barra conversa: se vacía al preguntar, recuerda las últimas preguntas, sigue con la misma máquina y la IA
-  recibe la conversación con tope de tokens).
+  recibe la conversación con tope de tokens),
+  v1.6.0 (la IA lee una guía de uso, un diccionario de sinónimos y fichas automáticas de todo lo cargado, y ELIGE los
+  fragmentos que contestan en vez de redactar: más rápido y copia fiel; Opciones -> Ver lo que lee la IA).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -267,5 +269,28 @@ La idea en una línea:
         "¿cómo cargo…?". El tema lo da Fuente.temas (acá: el código de las máquinas que nombra la pregunta).
       * La IA recibe las últimas preguntas y respuestas, recortadas a ~1800 caracteres (~500 tokens; cada respuesta a 450)
         para no pasarse de num_ctx 3072 con los datos de la máquina.
+  - LO QUE LEE LA IA (modulos/asistente/textos.py; Opciones → "Ver lo que lee la IA" lo muestra todo):
+      * GUÍA DE USO: modulos/mantenimiento/ia/guia.md (la dinámica de cada pestaña, escrita para la IA; "## Título" es una
+        sección, "ir: vista" la pantalla) + la común del asistente. Va a la IA solo lo que viene al caso (~2600 caracteres).
+        Si la IA contesta mal una pregunta de uso, casi siempre se arregla AGREGANDO EJEMPLOS a la sección que corresponde
+        (así se arregló "se rompió una correa, ¿dónde lo anoto?", que iba a Especificaciones).
+      * SINÓNIMOS: modulos/mantenimiento/ia/sinonimos.txt + los comunes (un grupo por renglón; se compara sin acentos y
+        por raíz: "cargo" = "cargar", "rulemán" -> rodamiento). Ojo: dos grupos con una palabra (o raíz) en común se
+        funden en uno ("registro" se sacó porque comparte raíz con "registrar" del grupo "cargar").
+      * FICHAS: mantenimiento/asistente.py fichas(): un texto corto por equipo, sección/seguridad/repuestos de instructivo,
+        correctivo, registro con novedades, especificación, área y persona. NO se guardan en la base: se arman de los
+        datos (0,07 s con 168 fichas) y se rehacen cuando cambia el archivo de la base. Contestan lo que no nombra una
+        máquina ("¿qué equipos llevan rulemán ucp 208?"). Reemplazaron la vieja "búsqueda en lo anotado".
+      * Orden: saludo -> respuesta exacta -> de uso (guía + Ayuda) -> datos de la máquina -> fichas -> guía como último
+        recurso -> "No hay nada cargado" + cargar especificación.
+      * herramientas/compilar.py mete modulos/*/ia en el .exe (como modulos/*/frontend).
+  - LA IA ELIGE, NO REDACTA (v1.6.0): recibe los datos en FRAGMENTOS numerados (renglones de los datos de la máquina con
+    su título como grupo, oraciones de la guía, fichas enteras) y contesta en JSON forzado por Ollama (format = esquema):
+    {"partes": [números], "respuesta": "una oración"}. La app muestra la oración y debajo los fragmentos TAL CUAL (los
+    del mismo grupo juntos, fechas dd/mm/aaaa). Sin partes: "No figura en la app". Motivo, medido en esta PC: leer
+    cuesta poco (~100-1000 tokens/s), escribir ~7 tokens/s; una respuesta elegida son ~20 tokens en vez de 100-200, y lo
+    mostrado no tiene números ni fechas reescritos. La oración sí la escribe la IA (y puede equivocarse: la pantalla lo dice).
+  - LENTITUD: con 8 GB de RAM, si la PC tiene abiertos VS Code, Edge, etc., Windows pasa memoria a disco y la IA escribe
+    a 0,8 tokens/s en vez de 7 (medido: 0,4 GB libres). No es falta de procesador: con 16 GB de RAM anda estable.
   - PC de la oficina: i5-10400, 8 GB RAM, sin placa de video. Respuestas de 2 a 30 s (la primera, ~35 s: carga el modelo).
 

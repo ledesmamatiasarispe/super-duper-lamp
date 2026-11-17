@@ -131,7 +131,7 @@ function _asisEvento(e, panel, escrito) {
     // se contestó sobre lo que se venía hablando: se dice, y se puede preguntar sin eso
     if (e.sigue) estado.insertAdjacentHTML('beforebegin', `<p class="asis-sigue sutil">Sobre <b>${esc(e.titulo || e.sigue)}</b>,
       por lo que venías preguntando. <button type="button" class="link" onclick="asisSinTema()">Preguntar en general</button></p>`);
-    const textos = { ia: 'La IA está leyendo los datos y escribiendo…', directa: '', resumen: '', nada: '' };
+    const textos = { ia: 'La IA está eligiendo en los datos lo que contesta la pregunta…', directa: '', resumen: '', nada: '' };
     estado.dataset.esperando = textos[e.modo] || '';
     estado.textContent = estado.dataset.esperando;
     if (e.aviso) estado.insertAdjacentHTML('afterend', `<p class="asis-aviso">${esc(e.aviso)}</p>`);
@@ -148,7 +148,7 @@ function _asisEvento(e, panel, escrito) {
     $('.asis-texto', panel).insertAdjacentHTML('afterend', `<p class="asis-aviso">${esc(e.aviso)}</p>`);
   } else if (e.tipo === 'fin') {
     delete estado.dataset.esperando;
-    const como = { ia: 'Redactado por la IA local con los datos de la app: verificá lo importante en la ficha.',
+    const como = { ia: 'Elegido por la IA local: lo de abajo es copia fiel de la app; la primera línea la escribió la IA.',
       directa: 'Respondido por la app, con sus propios cálculos.', resumen: 'Resumen de la app (sin IA).', nada: '' }[panel.dataset.modo] || '';
     estado.textContent = como ? `${como} · ${e.segundos} s` : '';
     if (_asisTactil && !_asisMicro) estado.textContent += ' · Para dictar, usá el micrófono del teclado.';
@@ -277,6 +277,23 @@ async function asisReiniciar(boton) {
   }
 }
 
+/** Opciones → "Ver lo que lee la IA": la guía de uso, los sinónimos y las fichas que se arman solas con los datos. */
+async function asisVerTextos() {
+  const t = await api('/api/asistente/textos');
+  const tipos = Object.entries(t.por_tipo).map(([k, n]) => `${esc(k)}: ${n}`).join(' · ');
+  const bloque = (titulo, cuerpo) => `<details class="asis-textos"><summary><b>${titulo}</b></summary>${cuerpo}</details>`;
+  abrirModal(`<h2>Lo que lee la IA</h2>
+    <p class="sutil">Para contestar, la IA no lee toda la base: recibe solo lo que viene al caso de estos textos.
+      La guía y los sinónimos vienen con la app; las fichas se arman solas con lo cargado y se rehacen cuando algo cambia.</p>
+    ${bloque(`Guía de uso (${t.guia.length} secciones)`, t.guia.map(s => `<h4>${esc(s.titulo)}${s.ir ? ` <span class="chip">${esc(s.ir)}</span>` : ''}</h4>
+      <p class="asis-pre">${esc(s.texto)}</p>`).join(''))}
+    ${bloque(`Sinónimos (${t.sinonimos.length} grupos)`, `<ul>${t.sinonimos.map(g => `<li>${esc(g.join(', '))}</li>`).join('')}</ul>
+      <p class="sutil">Se comparan por la raíz, sin acentos: por eso algunas palabras se ven recortadas.</p>`)}
+    ${bloque(`Fichas (${t.fichas.length}${tipos ? ': ' + tipos : ''})`, `<ul class="asis-fichas">${t.fichas.slice(0, 1500).map(f =>
+      `<li><b>[${esc(f.tipo)}] ${esc(f.titulo)}</b>: ${esc(f.texto)}</li>`).join('')}</ul>`)}
+    <div class="botones"><button type="button" onclick="cerrarModal()">Cerrar</button></div>`, true);
+}
+
 // ── Opciones: la IA local ──
 Nucleo.tarjetasOpciones.push({
   orden: 40,
@@ -288,6 +305,7 @@ Nucleo.tarjetasOpciones.push({
         : `<span class="chip ambar">Sin IA</span> ${esc(e.motivo)}`}</p>
       <p class="sutil">Lo que se puede contestar con cuentas (vencidos, pendientes, horas que faltan) lo contesta la app sola.
         Lo demás lo redacta la IA local con los datos de la app, sin salir a internet. Sin IA, la barra muestra un resumen.</p>
+      <div class="botones"><button type="button" onclick="asisVerTextos()">Ver lo que lee la IA</button></div>
       <p class="sutil">Micrófono: ${_asisMicro ? 'disponible en este navegador (botón 🎤).'
         : 'este navegador no lo permite en esta dirección; en el celular se dicta con el micrófono del teclado.'}</p>
       ${admin ? `<form id="f-asistente" class="campos">
