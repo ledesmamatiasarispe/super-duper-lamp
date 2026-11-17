@@ -117,5 +117,26 @@ def test_borrar_un_equipo_cargado_por_error_se_lleva_sus_especificaciones(sin_ia
     assert sin_ia.get(f"/api/especificaciones?equipo_id={r['id']}").json()["especificaciones"] == []
 
 
+def test_la_conversacion_sigue_con_la_misma_maquina(sin_ia):
+    def con(pregunta, charla, **extra):
+        r = sin_ia.post("/api/asistente/preguntar", json={"pregunta": pregunta, "historial": charla, **extra})
+        evs = [json.loads(x) for x in r.text.splitlines() if x.strip()]
+        return evs[0], "".join(e["texto"] for e in evs if e["tipo"] == "texto")
+
+    inicio, texto = preguntar(sin_ia, "¿qué le pasó al ETR-50?")
+    assert inicio["tema"] == "EQ-001"
+    charla = [{"pregunta": "¿qué le pasó al ETR-50?", "respuesta": texto, "tema": inicio["tema"]}]
+    inicio, texto = con("¿y cuántas horas tiene?", charla)
+    assert inicio["sigue"] == "EQ-001" and inicio["modo"] == "directa" and "horómetro" in texto
+    # nombrar otra máquina cambia de tema; pedir algo general, también
+    assert con("¿y la granalladora?", charla)[0]["titulo"] == "EQ-002 · Granalladora"
+    assert con("¿qué máquinas tuvieron problemas de rodamientos?", charla)[0]["sigue"] is None
+    # un nombre de varias máquinas no sigue el tema anterior: pregunta cuál
+    sin_ia.post("/api/equipos", json={"codigo": "EQ-003", "nombre": "Compresor de pistón", "area_id": 1})
+    assert "¿Por cuál" in con("¿y el compresor?", charla)[1]
+    # "Preguntar en general"
+    assert con("¿y cuántas horas tiene?", charla, sin_tema=True)[0]["sigue"] is None
+
+
 def test_la_pregunta_se_valida(api):
     assert "pregunta" in error(api.post("/api/asistente/preguntar", json={"pregunta": ""}))

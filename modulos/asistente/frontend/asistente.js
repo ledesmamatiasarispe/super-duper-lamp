@@ -14,6 +14,15 @@ let _asisEscucha = null;     // reconocimiento de voz en curso
 let _asisEnlaces = [];       // los botones de la respuesta que se está mostrando
 let _asisSiNoFigura = null;  // lo que se ofrece si la IA contesta "No figura en la app"
 let _asisAyudaCache = null;
+// La conversación: las últimas preguntas con su respuesta y de qué hablaron (tema), para que "¿y el aceite?" siga con la
+// misma máquina y la IA entienda a qué se refiere. Vive en esta pestaña; "Nueva" la borra, y se olvida sola tras 30 min
+// sin preguntar. El servidor recorta lo que manda a la IA (servicios._historial).
+let _asisCharla = [];
+let _asisUltima = 0;
+let _asisActual = '';        // la pregunta que se está contestando
+const _ASIS_TURNOS = 6, _ASIS_OLVIDO_MS = 30 * 60 * 1000;
+const _ASIS_PISTA = 'Preguntá algo… por ejemplo: ¿qué le pasó al lavador de humos?';
+const _ASIS_PISTA_SEGUIR = 'Seguí preguntando… (por ejemplo: ¿y cuándo fue el último servicio?)';
 // Las acciones que un módulo ofrece en las respuestas (por ejemplo, abrir un formulario ya completado):
 //   window.asisAcciones.<nombre> = datos => {...}     (el módulo puede registrarla antes o después de este archivo)
 window.asisAcciones = window.asisAcciones || {};
@@ -28,7 +37,7 @@ function _asisArmar() {
   form.innerHTML = `
     <span class="asis-lupa" aria-hidden="true">🔎</span>
     <input id="asis-pregunta" name="pregunta" type="search" enterkeyhint="search" autocomplete="off" maxlength="300"
-      placeholder="Preguntá algo… por ejemplo: ¿qué le pasó al lavador de humos?" aria-label="Preguntale a la app">
+      placeholder="${_ASIS_PISTA}" aria-label="Preguntale a la app">
     ${_asisMicro ? '<button id="asis-micro" class="asis-micro" type="button" title="Preguntar hablando">🎤</button>' : ''}
     <button class="asis-enviar" type="submit">Preguntar</button>`;
   barra.appendChild(form);
@@ -50,21 +59,36 @@ function _asisArmar() {
   });
 }
 
-/** Hace la pregunta y muestra la respuesta a medida que llega. */
-async function asisPreguntar(texto) {
+/** Hace la pregunta y muestra la respuesta a medida que llega, debajo de lo que ya se venía preguntando.
+ *  `sinTema`: contestar sin pegarle el tema de la pregunta anterior ("Preguntar en general"). */
+async function asisPreguntar(texto, { sinTema = false } = {}) {
   const pregunta = String(texto || '').trim();
-  if (!pregunta) return $('#asis-pregunta').focus();
+  const campo = $('#asis-pregunta');
+  if (!pregunta) return campo.focus();
   _asisPedido?.abort();
   const pedido = _asisPedido = new AbortController();
+  if (Date.now() - _asisUltima > _ASIS_OLVIDO_MS) _asisCharla = [];
+  _asisUltima = Date.now();
+  _asisActual = pregunta;
+  campo.value = '';                           // la barra queda lista para la próxima
+  campo.placeholder = _ASIS_PISTA_SEGUIR;
   const panel = $('#asis-panel');
   panel.classList.remove('oculto');
   document.documentElement.style.setProperty('--asis-alto', $('.barra').getBoundingClientRect().bottom + 'px');
-  panel.innerHTML = `<div class="asis-cabeza"><b class="asis-titulo">${esc(pregunta)}</b>
-      <button class="link" type="button" onclick="asisCerrar()" title="Cerrar (Esc)">✕</button></div>
-    <p class="asis-estado sutil">Buscando…</p><div class="asis-texto"></div><div class="asis-enlaces"></div>`;
+  const anteriores = _asisCharla.map(t => `<details class="asis-turno"><summary><span class="asis-p">${esc(t.pregunta)}</span>
+      ${t.titulo ? `<span class="chip">${esc(t.titulo)}</span>` : ''}</summary><div class="asis-texto">${_asisFormato(t.respuesta)}</div></details>`).join('');
+  panel.innerHTML = `<div class="asis-cabeza">${_asisCharla.length ? `<span class="sutil">Conversación · ${_asisCharla.length + 1} preguntas</span>` : ''}
+      <span class="asis-acciones">${_asisCharla.length ? '<button class="chico" type="button" onclick="asisNueva()" title="Olvidar lo que se venía preguntando">Nueva</button>' : ''}
+      <button class="link" type="button" onclick="asisCerrar()" title="Cerrar (Esc)">✕</button></span></div>
+    ${anteriores ? `<div class="asis-anteriores">${anteriores}</div>` : ''}
+    <div class="asis-actual"><div class="asis-cabeza"><b class="asis-titulo">${esc(pregunta)}</b></div>
+    <p class="asis-estado sutil">Buscando…</p><div class="asis-texto"></div><div class="asis-enlaces"></div></div>`;
+  panel.scrollTop = panel.scrollHeight;
+  const actual = $('.asis-actual', panel);     // lo de esta pregunta (las anteriores tienen las mismas clases)
+  const historial = _asisCharla.map(({ pregunta, respuesta, tema }) => ({ pregunta, respuesta, tema }));
   const inicio = Date.now();
   const reloj = setInterval(() => {
-    const e = $('.asis-estado', panel);
+    const e = $('.asis-estado', actual);
     if (e && e.dataset.esperando) e.textContent = `${e.dataset.esperando} ${Math.round((Date.now() - inicio) / 1000)} s`;
   }, 500);
   let escrito = '';
@@ -72,7 +96,7 @@ async function asisPreguntar(texto) {
     const r = await fetch('/api/asistente/preguntar', {
       method: 'POST', signal: pedido.signal,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.token },
-      body: JSON.stringify({ pregunta, ayuda: _asisAyuda() }),
+      body: JSON.stringify({ pregunta, ayuda: _asisAyuda(), historial, sin_tema: sinTema }),
     });
     if (r.status === 401) return salir();
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'No se pudo preguntar.');
@@ -84,11 +108,15 @@ async function asisPreguntar(texto) {
       resto += deco.decode(value, { stream: true });
       const lineas = resto.split('\n');
       resto = lineas.pop();
-      for (const l of lineas) if (l.trim()) escrito = _asisEvento(JSON.parse(l), panel, escrito);
+      for (const l of lineas) if (l.trim()) escrito = _asisEvento(JSON.parse(l), actual, escrito);
+    }
+    if (pedido === _asisPedido) {            // terminó (no la cortó otra pregunta): pasa a ser parte de la conversación
+      _asisCharla = [..._asisCharla, { pregunta, respuesta: escrito.trim(), tema: actual.dataset.tema || '',
+        titulo: actual.dataset.titulo || '' }].slice(-_ASIS_TURNOS);
     }
   } catch (e) {
     if (e.name === 'AbortError') return;
-    $('.asis-estado', panel).outerHTML = `<p class="error">${esc(e.message)}</p>`;
+    $('.asis-estado', actual).outerHTML = `<p class="error">${esc(e.message)}</p>`;
   } finally {
     clearInterval(reloj);
   }
@@ -98,6 +126,11 @@ function _asisEvento(e, panel, escrito) {
   const estado = $('.asis-estado', panel);
   if (e.tipo === 'inicio') {
     if (e.titulo) $('.asis-titulo', panel).insertAdjacentHTML('afterend', `<span class="chip">${esc(e.titulo)}</span>`);
+    panel.dataset.tema = e.tema || '';
+    panel.dataset.titulo = e.titulo || '';
+    // se contestó sobre lo que se venía hablando: se dice, y se puede preguntar sin eso
+    if (e.sigue) estado.insertAdjacentHTML('beforebegin', `<p class="asis-sigue sutil">Sobre <b>${esc(e.titulo || e.sigue)}</b>,
+      por lo que venías preguntando. <button type="button" class="link" onclick="asisSinTema()">Preguntar en general</button></p>`);
     const textos = { ia: 'La IA está leyendo los datos y escribiendo…', directa: '', resumen: '', nada: '' };
     estado.dataset.esperando = textos[e.modo] || '';
     estado.textContent = estado.dataset.esperando;
@@ -135,7 +168,7 @@ function asisEnlace(i) {
   const x = _asisEnlaces[i];
   if (!x) return;
   if (x.ir) return asisIr(x.ir);
-  if (x.accion === 'preguntar') { $('#asis-pregunta').value = x.datos?.pregunta || ''; return asisPreguntar(x.datos?.pregunta); }
+  if (x.accion === 'preguntar') return asisPreguntar(x.datos?.pregunta);
   const accion = window.asisAcciones?.[x.accion];
   if (!accion) return avisar('Esta acción no está disponible en esta app.', true);
   asisCerrar();
@@ -173,6 +206,22 @@ function _asisFormato(t) {
 
 function asisIr(destino) { asisCerrar(); irA(destino); }
 
+/** "Preguntar en general": la misma pregunta, sin pegarle la máquina (o lo que sea) de la anterior. */
+function asisSinTema() {
+  const q = _asisActual;
+  if (_asisCharla.at(-1)?.pregunta === q) _asisCharla = _asisCharla.slice(0, -1);   // reemplaza la respuesta, no se suma
+  asisPreguntar(q, { sinTema: true });
+}
+
+/** "Nueva": olvida la conversación y deja la barra lista para empezar de cero. */
+function asisNueva() {
+  _asisCharla = [];
+  asisCerrar();
+  const campo = $('#asis-pregunta');
+  campo.placeholder = _ASIS_PISTA;
+  campo.focus();
+}
+
 function asisCerrar() {
   _asisPedido?.abort();
   _asisPedido = null;
@@ -206,7 +255,7 @@ function _asisDictar() {
   rec.onend = () => {
     _asisEscucha = null;
     boton.classList.remove('escuchando');
-    campo.placeholder = 'Preguntá algo… por ejemplo: ¿qué le pasó al lavador de humos?';
+    campo.placeholder = _asisCharla.length ? _ASIS_PISTA_SEGUIR : _ASIS_PISTA;
     if (final.trim()) asisPreguntar(final);
   };
   rec.start();

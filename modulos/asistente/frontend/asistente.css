@@ -15,7 +15,16 @@
   background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px; padding: .8rem 1rem;
   box-shadow: 0 8px 24px rgba(23, 50, 77, .18); max-height: 60vh; overflow-y: auto; }
 .asis-cabeza { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.asis-cabeza .link { margin-left: auto; font-size: 1.1rem; text-decoration: none; color: var(--sutil); }
+.asis-acciones { margin-left: auto; display: flex; align-items: center; gap: .5rem; }
+.asis-acciones .link { font-size: 1.1rem; text-decoration: none; color: var(--sutil); }
+/* la conversación: lo anterior, plegado (se despliega tocándolo); lo de ahora, abajo */
+.asis-anteriores { margin: .3rem 0 .5rem; border-left: 3px solid var(--borde); padding-left: .6rem; }
+.asis-turno summary { cursor: pointer; padding: .2rem 0; color: var(--sutil); font-size: .92rem; }
+.asis-turno summary .chip { font-size: .75rem; }
+.asis-turno .asis-texto { font-size: .92rem; color: var(--sutil); margin: .2rem 0 .5rem; }
+.asis-actual { border-top: 1px solid var(--borde); padding-top: .4rem; }
+.asis-sigue { font-size: .85rem; margin: .3rem 0 0; }
+.asis-sigue .link { font-size: .85rem; }
 .asis-texto { margin: .5rem 0; line-height: 1.45; }
 .asis-texto p { margin: .3rem 0; }
 .asis-texto ul { margin: .3rem 0; padding-left: 1.3rem; }

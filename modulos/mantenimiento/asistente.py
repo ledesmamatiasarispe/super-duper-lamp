@@ -315,6 +315,12 @@ def sin_resultado(pregunta: str) -> dict | None:
             "enlaces": [_cargar(None, sugerido)]}
 
 
+def temas(pregunta: str) -> list[str]:
+    """Las máquinas que nombra la pregunta, por su código: así "¿y cuántas horas tiene?" después de preguntar por el
+    ETR-50 se contesta como "¿y cuántas horas tiene? (EQ-001)". Si nombra varias (el "compresor"), no se sigue ninguna."""
+    return [e["codigo"] for e in _candidatos(pregunta)]
+
+
 EJEMPLOS = ["¿Hay algo vencido?", "¿Qué le pasó al lavador de humos?", "¿Cuántas horas tiene el ETR-50?",
             "¿Qué hay que hacer en el servicio A del ETR-50?", "¿Qué máquinas tuvieron problemas de rodamientos?",
             "¿Cómo cargo un correctivo?"]
@@ -324,4 +330,5 @@ try:
 except ImportError:          # la app no trae el asistente: mantenimiento funciona igual
     registrar = None
 if registrar:
-    registrar(Fuente("mantenimiento", responder=responder, contexto=contexto, sin_resultado=sin_resultado, ejemplos=EJEMPLOS))
+    registrar(Fuente("mantenimiento", responder=responder, contexto=contexto, sin_resultado=sin_resultado, temas=temas,
+                     ejemplos=EJEMPLOS))

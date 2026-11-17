@@ -176,7 +176,9 @@ La idea en una línea:
   v1.3.0 (barra "Preguntá algo" arriba de todo: lo exacto lo contesta la app, lo demás una IA local con Ollama;
   micrófono en la PC; módulo asistente de appbase),
   v1.4.0 (especificaciones técnicas por equipo; la barra contesta "ayuda" y el uso de la app, ofrece cargar lo que
-  no figura, botones para elegir la máquina; Opciones -> Reiniciar la IA).
+  no figura, botones para elegir la máquina; Opciones -> Reiniciar la IA),
+  v1.5.0 (la barra conversa: se vacía al preguntar, recuerda las últimas preguntas, sigue con la misma máquina y la IA
+  recibe la conversación con tope de tokens).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS
@@ -257,5 +259,13 @@ La idea en una línea:
     pregunta: "presión de trabajo"). Sin máquina y sin nada cargado: "No hay nada cargado sobre «…»" + cargarla.
   - "ayuda"/"hola" -> ejemplos de preguntas (botones que preguntan). "¿Cómo cargo…?" -> la IA resume los textos de la
     Ayuda de las pantallas (los manda el navegador: Ayuda.pasos y el Tour; no se escriben dos veces).
+  - CONVERSACIÓN: al preguntar, la barra se vacía y el panel muestra lo anterior plegado arriba. Vive en la pestaña del
+    navegador (6 preguntas como mucho; "Nueva" la borra; se olvida sola tras 30 min sin preguntar). Dos usos:
+      * Seguir el tema: si la pregunta no nombra ninguna máquina ("¿y cuántas horas tiene?") y la anterior sí, se contesta
+        como "¿y cuántas horas tiene? (EQ-001)". Lo dice en pantalla ("Sobre EQ-001…, por lo que venías preguntando") con
+        un botón "Preguntar en general". No se sigue si nombra varias máquinas, ni en "todas/qué máquinas…", "ayuda" o
+        "¿cómo cargo…?". El tema lo da Fuente.temas (acá: el código de las máquinas que nombra la pregunta).
+      * La IA recibe las últimas preguntas y respuestas, recortadas a ~1800 caracteres (~500 tokens; cada respuesta a 450)
+        para no pasarse de num_ctx 3072 con los datos de la máquina.
   - PC de la oficina: i5-10400, 8 GB RAM, sin placa de video. Respuestas de 2 a 30 s (la primera, ~35 s: carga el modelo).
 

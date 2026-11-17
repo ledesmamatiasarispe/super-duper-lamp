@@ -32,10 +32,16 @@ URL_DEFECTO = "http://127.0.0.1:11434"
 MODELO_DEFECTO = "qwen2.5:3b"
 _CLAVE_URL, _CLAVE_MODELO = "asistente_url", "asistente_modelo"
 MAX_PREGUNTA = 300
+# La conversación que se recuerda (la manda la pantalla): las últimas preguntas y respuestas, hasta ~1800 caracteres
+# (unos 500 tokens). Alcanza para entender "¿y eso cuándo fue?" sin comerse la memoria de un modelo chico (num_ctx 3072,
+# donde los DATOS de una máquina ya ocupan bastante).
+MAX_TURNOS, MAX_CARACTERES_HISTORIAL, MAX_RESPUESTA_RECORDADA = 6, 1800, 450
 
 SISTEMA = """Sos el asistente de la app. Respondés en español rioplatense, claro y en pocas oraciones.
 Reglas:
 - Usá SOLO la información de DATOS. No inventes fechas, horas, nombres, cantidades ni repuestos.
+- Las preguntas y respuestas anteriores de la conversación sirven para entender a qué se refiere la pregunta nueva;
+  los datos para contestarla son los de DATOS.
 - Los números ya están calculados en DATOS: copialos tal cual, no hagas cuentas.
 - Si lo que se pregunta no figura en DATOS, decí "No figura en la app" y nada más.
 - Cuando des una fecha o un dato, decí de dónde sale (registro, correctivo, instructivo, horómetro...).
@@ -53,6 +59,10 @@ class Fuente:
                              si_no_figura (opcional): {"texto", "enlace"} que la pantalla ofrece si la IA contesta
                              "No figura en la app" (por ejemplo: cargar ese dato que falta)
       sin_resultado(pregunta) -> {"texto", "enlaces"}    qué decir cuando nadie encontró nada (en vez de "No encontré")
+      temas(pregunta) -> [str]   de qué cosa habla la pregunta (por ejemplo ["EQ-001"]; varias si el nombre es de varias;
+                                 [] si no nombra ninguna). Es lo que permite seguir la conversación: si la pregunta no
+                                 nombra nada ("¿y el aceite?"), se le agrega el tema de la anterior: "¿y el aceite? (EQ-001)".
+                                 Por eso el tema tiene que ser algo que la misma fuente reconozca escrito entre paréntesis.
       ejemplos: preguntas que funcionan bien, para la respuesta a "ayuda".
     Un enlace es {"texto": "Ver instructivo", "ir": "instructivos/5"} (la pantalla hace irA) o
     {"texto": "Cargar especificación", "accion": "especificacion", "datos": {...}}: la pantalla llama a la función que el
@@ -62,6 +72,7 @@ class Fuente:
     contexto: Callable[[str], dict | None] | None = None
     sin_resultado: Callable[[str], dict | None] | None = None
     ejemplos: list[str] = field(default_factory=list)
+    temas: Callable[[str], list[str]] | None = None
 
 
 FUENTES: list[Fuente] = []
@@ -208,11 +219,15 @@ def reiniciar(usuario: dict, espera: float = 45) -> dict:
                          "o reiniciá la PC.")
 
 
-def _ia(pregunta: str, datos: str, a: dict) -> Iterator[str]:
-    """Los pedazos de texto a medida que la IA los escribe (Ollama, /api/chat en modo stream)."""
+def _ia(pregunta: str, datos: str, a: dict, historial: list | None = None) -> Iterator[str]:
+    """Los pedazos de texto a medida que la IA los escribe (Ollama, /api/chat en modo stream). La conversación va antes,
+    como preguntas y respuestas; los DATOS solo en la pregunta de ahora (son los vigentes)."""
+    anteriores = []
+    for t in historial or []:
+        anteriores += [{"role": "user", "content": t["pregunta"]}, {"role": "assistant", "content": t["respuesta"]}]
     cuerpo = {"model": a["modelo"], "stream": True, "keep_alive": "30m",
               "options": {"temperature": 0.1, "num_ctx": 3072},
-              "messages": [{"role": "system", "content": SISTEMA},
+              "messages": [{"role": "system", "content": SISTEMA}, *anteriores,
                            {"role": "user", "content": f"DATOS:\n{datos}\n\nPREGUNTA: {pregunta}"}]}
     pedido = urllib.request.Request(a["url"] + "/api/chat", data=json.dumps(cuerpo).encode(),
                                     headers={"Content-Type": "application/json"})
@@ -286,23 +301,69 @@ def _manual(pregunta: str, ayuda: list) -> dict | None:
             "enlaces": [{"texto": f"Ir a {v}", "ir": v} for v in vistas[:3]]}
 
 
-def preguntar(pregunta, ayuda: list | None = None) -> Iterator[dict]:
+def _historial(historial) -> list[dict]:
+    """La conversación que manda la pantalla, limpia y recortada: los últimos turnos que entran en el tope de caracteres
+    (los más nuevos primero en entrar). Cada turno: {pregunta, respuesta, tema}."""
+    turnos = []
+    for t in (historial if isinstance(historial, list) else [])[-MAX_TURNOS:]:
+        if isinstance(t, dict) and validar.corto(t.get("pregunta"), MAX_PREGUNTA):
+            respuesta = validar.corto(t.get("respuesta"), 4000)
+            if len(respuesta) > MAX_RESPUESTA_RECORDADA:
+                respuesta = respuesta[:MAX_RESPUESTA_RECORDADA].rsplit(" ", 1)[0] + " […]"
+            turnos.append({"pregunta": validar.corto(t.get("pregunta"), MAX_PREGUNTA),
+                           "respuesta": respuesta or "(sin respuesta)", "tema": validar.corto(t.get("tema"), 60)})
+    elegidos, total = [], 0
+    for t in reversed(turnos):
+        total += len(t["pregunta"]) + len(t["respuesta"])
+        if total > MAX_CARACTERES_HISTORIAL and elegidos:
+            break
+        elegidos.insert(0, t)
+    return elegidos
+
+
+def _temas(pregunta: str) -> list[str]:
+    return [t for f in FUENTES if f.temas for t in (f.temas(pregunta) or [])]
+
+
+# preguntas que piden algo general aunque se venga hablando de una cosa: no se les pega el tema anterior
+_GENERAL = re.compile(r"\b(todas|todos|en general|que (maquinas|equipos)|cuales (maquinas|equipos)|alguna (maquina|otra)|"
+                      r"algun (equipo|otro)|otras? (maquinas?|equipos?))\b")
+
+
+def preguntar(pregunta, ayuda: list | None = None, historial: list | None = None, sin_tema: bool = False) -> Iterator[dict]:
     """La respuesta como una serie de eventos (para mostrarla a medida que se escribe):
-      {"tipo": "inicio", "modo": "directa"|"ia"|"resumen"|"nada", "titulo", "enlaces", "aviso", "si_no_figura"}
+      {"tipo": "inicio", "modo": "directa"|"ia"|"resumen"|"nada", "titulo", "enlaces", "aviso", "si_no_figura",
+       "tema", "sigue"}
       {"tipo": "texto", "texto": "..."}        (uno o muchos)
       {"tipo": "fin", "segundos": 3.2}
     Orden: "ayuda"/"hola" -> lo que un módulo contesta sin IA -> si es de USO de la app, la Ayuda de las pantallas
     (`ayuda`: [{pantalla, titulo, texto}], la manda la pantalla) -> los datos de los módulos con IA -> si nadie encontró
-    nada, lo que proponga un módulo (sin_resultado). Si la IA falla a mitad de camino, se muestra el resumen."""
+    nada, lo que proponga un módulo (sin_resultado). Si la IA falla a mitad de camino, se muestra el resumen.
+
+    La conversación (`historial`: [{pregunta, respuesta, tema}], la manda la pantalla): si la pregunta no nombra nada y
+    la anterior sí ("¿cuántas horas tiene?" después de preguntar por el EQ-001), se contesta sobre lo mismo; el evento
+    inicio lo dice en `sigue` para que la pantalla lo muestre y ofrezca preguntar sin eso (`sin_tema`). `tema` es de qué
+    habló esta respuesta, para la próxima pregunta. La IA además recibe las últimas preguntas y respuestas."""
     q = validar.texto(pregunta, "la pregunta", maximo=MAX_PREGUNTA)
+    charla = _historial(historial)
     t0 = time.time()
     doble = "\n\n"
+    de_uso = bool(_DE_USO.search(_norm(q)))
+    sigue = None
+    if charla and not sin_tema and not de_uso and not _SALUDO.match(_norm(q)) and not _GENERAL.search(_norm(q)):
+        anterior = charla[-1]["tema"]
+        if anterior and not _temas(q):
+            sigue = anterior
+            q = f"{q.rstrip(' ?¿')} ({anterior})?"
+    propios = _temas(q)
+    tema = propios[0] if len(propios) == 1 else ""
 
     def fin():
         return {"tipo": "fin", "segundos": round(time.time() - t0, 1)}
 
     def directa(r, modo="directa"):
-        yield {"tipo": "inicio", "modo": modo, "titulo": r.get("titulo", ""), "enlaces": r.get("enlaces", []), "aviso": ""}
+        yield {"tipo": "inicio", "modo": modo, "titulo": r.get("titulo", ""), "enlaces": r.get("enlaces", []), "aviso": "",
+               "tema": tema, "sigue": sigue}
         yield {"tipo": "texto", "texto": r["texto"]}
         yield fin()
 
@@ -315,7 +376,7 @@ def preguntar(pregunta, ayuda: list | None = None) -> Iterator[dict]:
             yield from directa(r)
             return
 
-    manual = _manual(q, ayuda or []) if _DE_USO.search(_norm(q)) else None
+    manual = _manual(q, ayuda or []) if de_uso else None
     contextos = [manual] if manual else [x for x in (f.contexto(q) for f in FUENTES if f.contexto) if x]
     if not contextos:
         for f in FUENTES:
@@ -332,15 +393,16 @@ def preguntar(pregunta, ayuda: list | None = None) -> Iterator[dict]:
     est = estado()
     if not est["disponible"]:
         yield {"tipo": "inicio", "modo": "resumen", "titulo": titulo, "enlaces": enlaces, "aviso": est["motivo"],
-               "si_no_figura": si_no_figura}
+               "si_no_figura": si_no_figura, "tema": tema, "sigue": sigue}
         yield {"tipo": "texto", "texto": resumen}
         yield fin()
         return
 
-    yield {"tipo": "inicio", "modo": "ia", "titulo": titulo, "enlaces": enlaces, "aviso": "", "si_no_figura": si_no_figura}
+    yield {"tipo": "inicio", "modo": "ia", "titulo": titulo, "enlaces": enlaces, "aviso": "", "si_no_figura": si_no_figura,
+           "tema": tema, "sigue": sigue}
     escrito = False
     try:
-        for pedazo in _ia(q, doble.join(x["datos"] for x in contextos), est):
+        for pedazo in _ia(q, doble.join(x["datos"] for x in contextos), est, charla):
             escrito = True
             yield {"tipo": "texto", "texto": pedazo}
     except (OSError, ValueError, RuntimeError) as e:
