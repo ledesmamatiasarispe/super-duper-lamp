@@ -136,11 +136,12 @@ def ordenar(pregunta: str, docs: list[dict], clave: str = "_n") -> list[tuple[fl
     pesos = [math.log((n + 1) / (sum(1 for x in veces if x[i]) + 0.5)) for i in range(len(lista))]
     puntuados = []
     for d, x in zip(docs, veces):
-        # lo que importa es QUÉ encuentra (palabras raras pesan más); repetirse solo desempata
-        puntos = sum(p * (1 + 0.15 * min(k - 1, 4)) for p, k in zip(pesos, x) if k)
+        # lo que importa es QUÉ encuentra (palabras raras pesan más); repetirse solo desempata. Lo que está en el
+        # título pesa un 50 % más: el título dice de qué se trata (las secciones de la guía se titulan como la pregunta)
+        titulo = [any(f" {v} " in d.get("_t", "") for v in c) for c in lista]
+        puntos = sum(p * (1 + 0.15 * min(k - 1, 4) + 0.5 * t) for p, k, t in zip(pesos, x, titulo) if k)
         if puntos > 0:
-            en_titulo = any(any(f" {v} " in d.get("_t", "") for v in c) for c in lista)
-            puntuados.append((puntos + d.get("_extra", 0), sum(1 for k in x if k), d, en_titulo))
+            puntuados.append((puntos + d.get("_extra", 0), sum(1 for k in x if k), d, any(titulo)))
     return sorted(puntuados, key=lambda x: -x[0])
 
 

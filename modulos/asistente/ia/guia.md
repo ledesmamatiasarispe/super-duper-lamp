@@ -7,8 +7,22 @@ propia guía con sus pestañas. Cada "##" es una sección; "ir:" dice a qué pan
 ir: inicio
 Arriba de todo, en todas las pantallas. Se escribe (o se dicta con el 🎤 en la PC; en el celular, con el micrófono del
 teclado) y se toca Preguntar. Lo que se calcula (listas, cuentas, vencimientos) lo contesta la app al instante; lo demás
-lo redacta una IA que corre en la PC, solo con lo cargado. Recuerda las últimas preguntas: "¿y cuántas horas tiene?"
-sigue hablando de la misma máquina. "Nueva" empieza de cero. "ayuda" muestra ejemplos.
+lo busca una IA que corre en la PC: elige de lo cargado los renglones que contestan y la app los muestra tal cual, con
+una línea arriba escrita por la IA. Recuerda las últimas preguntas: "¿y cuántas horas tiene?" sigue hablando de la
+misma máquina; "Preguntar en general" la repite sin ese tema, y "Nueva" empieza de cero. "ayuda" muestra ejemplos.
+
+## Qué se le puede preguntar a la barra
+ir: inicio
+Sobre lo cargado: qué le pasó a una máquina, qué se le cambió, qué falta hacer, qué está vencido, un dato técnico. Sobre
+cómo se usa la app: "¿cómo cargo…?", "¿dónde veo…?", "¿qué significa…?", "¿qué hago si…?". No sabe lo que no está
+cargado (contesta "No figura en la app" y a veces ofrece cargarlo), no busca en internet y no modifica nada: para
+cargar o cambiar algo hay que usar las pantallas.
+
+## La IA no contesta o tarda mucho
+ir: opciones
+Sin IA la barra sigue funcionando: contesta lo que se calcula y muestra un resumen. Si la IA se colgó, un administrador
+toca Opciones → Reiniciar la IA (tarda hasta un minuto). Si tarda siempre, suele ser poca memoria libre en la PC:
+cerrar otros programas ayuda. Opciones → "Ver lo que lee la IA" muestra la guía, los sinónimos y las fichas que usa.
 
 ## Ayuda y Tour completo
 ir: inicio

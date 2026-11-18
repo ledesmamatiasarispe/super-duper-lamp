@@ -4,8 +4,8 @@ una FUENTE que sabe contestar sobre lo suyo (ver modulos/mantenimiento/asistente
 Una pregunta se contesta así, en este orden:
   1. RESPUESTA DIRECTA: si una fuente la sabe contestar sin IA (listas, cuentas, vencimientos), contesta ella. Es
      instantáneo y exacto; justo donde un modelo chico se equivoca (confunde "no hay ninguna" con "no tengo el dato").
-  2. CON IA: si no, cada fuente junta los DATOS que vienen al caso (ya resumidos y calculados) y la IA local solo los
-     redacta. Nunca inventa de dónde sacar algo: lo que no está en los datos, "No figura en la app".
+  2. CON IA: si no, cada fuente junta los DATOS que vienen al caso (ya resumidos y calculados) y la IA local ELIGE los
+     fragmentos que contestan (no redacta). Nunca inventa de dónde sacar algo: lo que no está en los datos, "No figura en la app".
   3. SIN IA: si la IA no está instalada o no responde, se muestra el resumen que la fuente armó con esos mismos datos.
      La barra sirve igual, como buscador.
 
@@ -333,7 +333,7 @@ _DE_USO = re.compile(r"\b(como (cargo|registro|agrego|anoto|creo|borro|elimino|e
                      r"agrega|anota|crea|borra|elimina|edita|modifica|imprime|cambia|usa|ve|programa|marca|sube|asigna|dibuja|ubica)|"
                      r"donde (veo|cargo|esta|estan|se ve|se carga|encuentro|anoto)|para que sirve|que significa|que quiere decir|"
                      r"como (funciona|se calcula|se cuenta|anda)|explicame|"
-                     r"que pasa (si|cuando)|"
+                     r"que pasa (si|cuando)|que (hago|hacemos|tengo que hacer|hay que hacer) (si|cuando|con)|por que no(?= (aparece|figura|sale|se ve))|"
                      r"(como|donde) (lo |la |los |las |le )(cargo|registro|agrego|anoto|borro|elimino|edito|cambio|veo|imprimo)|"
                      r"(quiero|tengo que|necesito|como hago para|como puedo|donde puedo) (anotar|cargar|registrar|agregar|"
                      r"borrar|eliminar|editar|modificar|cambiar|imprimir|ver|dar de (alta|baja)|programar|reactivar))\b")
@@ -342,7 +342,7 @@ def _ayuda(pregunta: str) -> dict:
     texto = "\n".join([
         "Soy la barra de preguntas: contesto con lo que está cargado en la app.",
         "- Lo que se calcula (vencidos, pendientes, lecturas) lo contesta la app al instante.",
-        "- Lo demás lo redacta una IA que corre en esta PC, solo con los datos cargados: si algo no está, te lo digo.",
+        "- Lo demás lo busca una IA que corre en esta PC: elige de lo cargado lo que contesta y lo muestra tal cual. Si algo no está, te lo digo.",
         "- También explico cómo se usa cada pantalla («¿cómo cargo…?»).",
     ] + (["Probá con alguna de estas:"] if ejemplos else []))
     return {"titulo": "Ayuda", "texto": texto,

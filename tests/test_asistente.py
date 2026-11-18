@@ -156,7 +156,11 @@ def test_guia_sinonimos_y_fichas_de_mantenimiento(sin_ia):
     # de uso: la guía, aunque no diga "cómo cargo"
     for q, pantalla in [("¿qué significa la cruz roja en el cronograma?", "cronograma"),
                         ("se rompió una correa, ¿dónde lo anoto?", "correctivos"),
-                        ("¿qué es el cumplimiento?", "cronograma")]:
+                        ("¿qué es el cumplimiento?", "cronograma"),
+                        ("¿qué hago si llega una máquina nueva?", "equipos"),
+                        ("¿por qué no aparece una tarea en el cronograma?", "plan"),
+                        ("¿cómo ubico una máquina en el mapa?", "mapa"),
+                        ("me equivoqué al cargar un registro, ¿qué hago con eso?", "registros")]:
         inicio = preguntar(sin_ia, q)[0]
         assert inicio["titulo"] == "Cómo se usa la app" and {"texto": f"Ir a {pantalla}", "ir": pantalla} in inicio["enlaces"], q
 

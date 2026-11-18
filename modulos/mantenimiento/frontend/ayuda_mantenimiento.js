@@ -2,7 +2,8 @@
 // ── Módulo MANTENIMIENTO: la Ayuda de sus pantallas y sus pasos del Tour completo ──
 // El motor es del núcleo (nucleo/frontend/ayuda.js); acá solo los pasos, registrados en Ayuda.pasos y Ayuda.tour.
 (function () {
-  const { uno, enVista, boton, tarjeta, campo, botonModal, menu } = Ayuda.h;
+  const { uno, todos, conTexto, enVista, boton, tarjeta, campo, botonModal, menu } = Ayuda.h;
+  const vista = () => document.getElementById('vista');
   const COMO_VER_OCULTOS = 'Marcá <b>Ver ocultos</b> (el número dice cuántos hay) y aparecen tachados, con el botón para reactivarlos. Se recuerda mientras navegás.';
   const VER_OCULTOS = 'Lo dado de baja <b>no se borra</b>: queda oculto para no estorbar. ' + COMO_VER_OCULTOS;
   /** Un símbolo del cronograma con los mismos colores que su leyenda. */
@@ -28,9 +29,9 @@
         + 'Si dice <b>"faltan 2"</b> es una tarea que se hace más de una vez por mes (por ejemplo, quincenal).' },
       { el: () => enVista('table tbody tr button')?.closest('tr'), titulo: 'Cada tarea pendiente', texto: 'Una fila por tarea: el código, el equipo, la sección del instructivo (tocala para ver qué actividades lleva), la frecuencia y el responsable. '
         + '<b>Registrar</b> abre el formulario con esa tarea ya elegida.' },
-      { el: () => tarjeta('Atrasados'), titulo: 'Atrasados', texto: 'Lo que tocaba en <b>meses anteriores</b> y no se registró: en el Cronograma figura como vencido (✗). '
-        + 'Si se hizo y no se anotó, registralo con la fecha real; si se hizo tarde, con la fecha en que se hizo.' },
-      { el: () => tarjeta('Servicios por horas'), titulo: 'Servicios por horas', texto: 'Los servicios que dependen de las <b>horas de uso</b> del equipo (su horómetro), no del calendario. Aparecen acá cuando están cerca o vencidos, '
+      { el: () => tarjeta('Atrasados'), titulo: 'Atrasados', texto: 'Lo que tocaba en <b>meses anteriores de este año</b> y no se registró: en el Cronograma figura como vencido (✗). '
+        + 'Si se hizo y no se anotó, registralo con la fecha real; si se hizo tarde, con la fecha en que se hizo. Lo de años anteriores se ve en el Cronograma de ese año.' },
+      { el: () => tarjeta('Servicios por horas'), titulo: 'Servicios por horas', texto: 'Los servicios que dependen de las <b>horas de uso</b> del equipo (su horómetro), no del calendario. Aparecen acá cuando les faltan <b>100 horas o menos</b> o ya se pasaron, '
         + 'o cuando falta un dato: <b>"Sin lectura"</b> es que nunca se anotó el horómetro de ese equipo. <b>Ver horómetros</b> lleva a la grilla completa.' },
     ],
 
@@ -62,7 +63,7 @@
       { el: () => enVista('table thead'), titulo: 'Qué se ve de cada registro', texto: 'Fecha, tarea, equipo, sección del instructivo, el <b>resultado</b> (si se reprogramó, abajo dice para cuándo), quién lo hizo, horas-hombre, '
         + 'la lectura del horómetro si tenía, novedades y repuestos usados.' },
       { el: () => boton('Anular'), titulo: 'Anular (solo administradores)', texto: 'Es solo para <b>corregir una carga equivocada</b>: borra el registro junto con su lectura de horómetro, y el mes vuelve a quedar pendiente. '
-        + 'Si el trabajo se hizo mal, no se anula: se registra otro con lo que corresponda.' },
+        + 'Un registro no se edita: se anula y se carga de nuevo. Si el trabajo se hizo mal, no se anula: se registra otro con lo que corresponda.' },
     ],
 
     horometros: () => [
@@ -82,8 +83,12 @@
 
     correctivos: () => [
       { titulo: 'Correctivos', texto: 'Las <b>reparaciones no programadas</b> del año: fallas, roturas, arreglos de urgencia. Sirven para ver qué equipos fallan más y cuánto tiempo estuvieron parados.' },
+      { el: () => conTexto('.encabezado button', '◄', vista()), titulo: 'Cambiar de año', texto: 'Para ver los correctivos de otro año.' },
       { el: () => enVista('.encabezado .chip'), titulo: 'Resumen', texto: 'Cuántos correctivos hubo en el año y el total de horas de parada.' },
-      { el: () => boton('Registrar correctivo'), titulo: 'Registrar correctivo', texto: 'Equipo, falla o síntoma, causa, qué se hizo, horas de parada, horas-hombre, quién lo hizo y repuestos.' },
+      { el: () => boton('Registrar correctivo'), titulo: 'Registrar correctivo', texto: 'Cualquier usuario: equipo, fecha, falla o síntoma, causa, qué se hizo, horas de parada, horas-hombre, quién lo hizo y repuestos. '
+        + 'También se abre desde Inicio. Un correctivo guardado no se edita ni se anula: revisalo antes de guardar.' },
+      { el: () => enVista('table thead'), titulo: 'Cada correctivo', texto: 'Fecha, equipo y su área (Sector), la falla, la causa, la acción, las horas de <b>parada</b> y de trabajo (HH), los repuestos y quién lo hizo. '
+        + 'Los mismos números se suman por área (en Áreas) y por persona (en Personal).' },
       { el: () => conTexto('#vista th', 'SGC'), titulo: 'Acción del SGC', texto: 'Dice <b>Sí</b> cuando al registrar se marcó que la falla requiere una acción del sistema de calidad (abrir un RAC).' },
     ],
 
@@ -97,6 +102,8 @@
         + 'desde qué mes, en qué meses, o cada cuántas horas y a cuántas el primer servicio.' },
       { el: () => boton('Editar'), titulo: 'Editar', texto: 'Cambia la frecuencia, el responsable o las observaciones. Lo ya registrado no se pierde.' },
       { el: () => boton('Dar de baja'), titulo: 'Dar de baja no es eliminar', texto: 'La tarea deja de aparecer en el Cronograma y en Inicio, pero <b>sus registros se conservan</b>. Se puede reactivar desde <b>Ver ocultos</b>.' },
+      { el: () => boton('Reactivar'), titulo: 'Reactivar', texto: 'Vuelve a poner la tarea en el Cronograma y en Inicio. Al reactivar un equipo obsoleto, sus tareas se reactivan acá, una por una.' },
+      { titulo: '¿Muchas secciones sin programar?', texto: 'En <b>Opciones → Programar todos</b> (administradores) se programan todas de una vez, con la frecuencia sugerida por el instructivo.' },
     ],
 
     equipos: () => [
@@ -105,15 +112,16 @@
         + 'Si es <b>parecido a otro equipo</b> que ya está, elegilo y arranca con una <b>copia</b> de su instructivo; si no, al guardar se abre el instructivo nuevo para cargarlo.' },
       { el: () => enVista('.ver-ocultos'), titulo: 'Ver ocultos', texto: 'Los equipos marcados obsoletos no se borran: quedan ocultos con todo su historial. ' + COMO_VER_OCULTOS },
       { el: () => enVista('table tbody tr:not(.baja) td:nth-child(6)'), titulo: 'Su instructivo', texto: 'Código y revisión del instructivo, y qué secciones ya están <b>en el Plan</b> (A, B…). '
-        + 'Si dice <b>sin programar</b>, el instructivo existe pero todavía no se le asignó una frecuencia: no va a aparecer en el Cronograma.' },
+        + 'Si dice <b>sin programar</b>, el instructivo existe pero todavía no se le asignó una frecuencia: no va a aparecer en el Cronograma. <b>Sin instructivo</b>: falta crearlo.' },
+      { el: () => enVista('table tbody tr td:nth-child(7)'), titulo: 'Estado', texto: '<b>Vigente</b>, u <b>Obsoleto</b> con la fecha y el motivo de la baja.' },
       { el: () => boton('Ver instructivo'), titulo: 'Ver instructivo', texto: 'Abre el documento para leerlo o imprimirlo.' },
       { el: () => boton('Crear instructivo'), titulo: 'Crear instructivo', texto: 'Aparece en un equipo que todavía no tiene. Arranca con los datos del equipo ya puestos.' },
       { el: () => boton('Especificaciones'), titulo: 'Especificaciones', texto: 'Los <b>datos técnicos</b> del equipo (aceite, correas, presiones, torques...) y <b>de dónde salen</b> '
-        + '(manual, placa, proveedor, técnico). Cualquiera los carga o corrige. La barra de preguntas contesta con estos datos, '
-        + 'y cuando falta uno ofrece cargarlo ahí mismo.' },
+        + '(manual, placa, proveedor, técnico). Entre paréntesis, cuántas tiene. Cualquiera los carga o corrige; borrar es de administradores. La barra de preguntas contesta con estos datos, '
+        + 'y cuando falta uno ofrece cargarlo ahí mismo. Lo que se rompió o se arregló no va acá: va en Correctivos.' },
       { el: () => boton('Editar'), titulo: 'Editar el equipo', texto: 'Cambia sus datos o deja de usar un instructivo. Si todavía no tiene, le podés copiar el de un equipo parecido, o asignarle uno que haya quedado sin equipo.' },
       { el: () => boton('Marcar obsoleto'), titulo: 'Marcar obsoleto', texto: 'Para un equipo que <b>ya no está</b> (se vendió, se desarmó). Pide el motivo y da de baja sus tareas del Plan, pero <b>su historial queda guardado</b>. '
-        + 'Si vuelve, se reactiva desde Ver ocultos (sus tareas se reactivan aparte, en el Plan).' },
+        + 'Si vuelve, se reactiva desde Ver ocultos con <b>Reactivar</b> (sus tareas se reactivan aparte, en el Plan).' },
       { el: () => boton('Eliminar'), titulo: 'Eliminar', texto: 'Solo para un equipo <b>cargado por error</b>: lo borra sin dejar rastro. Por eso aparece únicamente en los que no tienen nada vinculado.' },
       { el: () => conTexto('#vista p.sutil', 'Instructivos sin equipo'), titulo: 'Instructivos sueltos', texto: 'Instructivos que no están asignados a ningún equipo. Se asignan desde <b>Editar</b> del equipo.' },
     ],
@@ -164,6 +172,8 @@
         + '<b>azul</b> si a un servicio por horas le falta un dato (lectura o próximo inicial) y <b>verde</b> si está al día.' },
       { el: () => enVista('#mapa-svg'), titulo: 'Tocar una máquina', texto: 'Muestra lo que tiene pendiente, con el botón <b>Registrar</b> para cargarlo ahí mismo. '
         + 'La rueda del mouse acerca y aleja; arrastrando se mueve el plano. <b>Ajustar</b> lo vuelve a mostrar entero.' },
+      { el: () => enVista('#mapa-lado'), titulo: 'Máquinas en este plano', texto: 'La lista de las máquinas del plano, cada una con su color. Tocar el nombre hace lo mismo que tocar el punto. '
+        + 'Abajo dice cuántas máquinas no están ubicadas en ningún plano.' },
       { el: () => boton('Nuevo plano'), titulo: 'Nuevo plano (solo administradores)', texto: 'Nombre y medidas en metros del área a dibujar. Al crearlo se abre para dibujar.' },
       { el: () => boton('Editar este plano'), titulo: 'Editar: un croquis como el de SolidWorks u Onshape', texto: 'Se dibuja con <b>Línea</b> (encadenada), <b>Rectángulo</b>, <b>Círculo</b>, <b>Arco</b>, <b>Polígono</b> y <b>Texto</b>, '
         + 'con imanes a puntos, medios y líneas, y guías horizontales y verticales. Las <b>restricciones</b> (horizontal, paralela, tangente...) y las <b>cotas</b> mandan sobre el dibujo. '
@@ -183,10 +193,18 @@
         + '(según lo elegido: dos líneas → paralela, perpendicular, igual; línea y círculo → tangente; dos puntos → coincidente...) y las que ya tiene, y las operaciones: '
         + '<b>Equidistancia</b> (una copia a cierta distancia; "a los dos lados" arma una pared con espesor), <b>Simetría</b> (respecto de la última línea elegida) y <b>Duplicar</b>. '
         + 'Ctrl+Z / Ctrl+Y deshacen y rehacen; Ctrl+C / Ctrl+V copian.' },
+      { el: () => boton('Ubicar'), titulo: 'Ubicar las máquinas', texto: 'Abajo están las máquinas que no están en este plano (si están en otro, lo dice). Tocá <b>Ubicar</b> y después el lugar en el plano. '
+        + 'Una máquina va en un solo plano: ubicarla acá la saca del otro. Para sacarla, elegila con Seleccionar y tocá <b>Sacar del plano</b>. Las obsoletas no se ubican.' },
+      { el: () => boton('Guardar plano'), titulo: 'Guardar plano', texto: 'Guarda el dibujo y las máquinas ubicadas. <b>Cancelar</b> descarta todo lo hecho desde que se abrió el editor.' },
     ],
     personal: () => [
       { titulo: 'Personal y proveedores', texto: 'Quiénes hacen los trabajos, y cuántos preventivos y correctivos hizo cada uno en el año, con sus horas-hombre.' },
-      { el: () => tarjeta('Mantenimiento interno'), titulo: 'Mantenimiento interno', texto: 'Los operarios de mantenimiento. Los usuarios del sistema aparecen solos acá (su nombre se cambia en Usuarios).' },
+      { el: () => conTexto('.encabezado button', '◄', vista()), titulo: 'Cambiar de año', texto: 'Los números son del año elegido.' },
+      { el: () => tarjeta('Mantenimiento interno'), titulo: 'Mantenimiento interno', texto: 'Los operarios de mantenimiento. Los usuarios del sistema aparecen solos acá, con el cartel azul <b>usuario · leg.</b>: '
+        + 'su nombre se cambia y se dan de baja en Usuarios.' },
+      { el: () => enVista('.tarjeta table thead'), titulo: 'Qué se ve de cada uno', texto: 'Cuántos <b>preventivos</b> y <b>correctivos</b> hizo en el año, sus horas-hombre (HH) y la fecha del último trabajo.' },
+      { el: () => boton('Nuevo operario') || boton('Nuevo proveedor'), titulo: 'Nuevo operario o proveedor (solo administradores)', texto: 'Para alguien que hace trabajos pero no entra a la app. '
+        + 'Si va a entrar, se le crea un usuario en Usuarios y aparece solo acá.' },
       { el: () => tarjeta('Proveedores externos'), titulo: 'Proveedores externos', texto: 'Empresas o personas de afuera que hacen trabajos, con su contacto y rubro.' },
       { el: () => conTexto('#vista td', 'Otros, sin dar de alta'), titulo: 'Otros, sin dar de alta', texto: 'Al registrar, si quien hizo el trabajo no está en la lista se elige "Otro" y se escribe el nombre. Esos nombres aparecen acá, para darlos de alta si hace falta.' },
       { el: () => boton('Ver trabajos'), titulo: 'Ver trabajos', texto: 'La lista de todo lo que hizo esa persona en el año.' },
@@ -196,7 +214,9 @@
     areas: () => [
       { titulo: 'Áreas', texto: 'Las áreas de la planta, con cuántos equipos tiene cada una y lo que pasó en el año: preventivos, correctivos y horas de parada.' },
       { el: () => boton('Nueva área'), titulo: 'Nueva área', texto: 'También se puede crear desde el formulario del equipo, con "+ Nueva área…".' },
+      { el: () => conTexto('.encabezado button', '◄', vista()), titulo: 'Cambiar de año', texto: 'Los preventivos, correctivos y horas de parada son del año elegido.' },
       { el: () => boton('Renombrar'), titulo: 'Renombrar', texto: 'Corrige el nombre en <b>todos</b> sus equipos de una vez.' },
+      { el: () => boton('Dar de baja'), titulo: 'Dar de baja', texto: 'El área deja de ofrecerse al cargar un equipo, pero sus equipos y sus números no cambian.' },
       { el: () => boton('Eliminar'), titulo: 'Eliminar', texto: 'Solo aparece en un área sin equipos: es para una creada por error. Para dejar de usarla, se da de baja.' },
       { el: () => enVista('.ver-ocultos'), titulo: 'Ver ocultos', texto: VER_OCULTOS },
     ],
@@ -217,16 +237,45 @@
       { el: () => botonModal('Guardar'), titulo: 'Guardar', texto: 'Si falta algo o hay un dato mal, el aviso aparece en rojo arriba de este botón y el formulario no se cierra.' },
     ],
     'f-correctivo': () => [
-      { el: () => campo('equipo_id'), titulo: 'Equipo', texto: 'El equipo que falló.' },
+      { titulo: 'Un correctivo', texto: 'Una <b>falla o rotura</b> que no estaba programada. Lo programado (un preventivo) se carga con Registrar mantenimiento.' },
+      { el: () => [campo('equipo_id'), campo('fecha')], titulo: 'Equipo y fecha', texto: 'El equipo que falló y cuándo (no puede ser una fecha futura).' },
       { el: () => [campo('falla'), campo('causa'), campo('accion')], titulo: 'Qué pasó', texto: 'La <b>falla</b> o lo que se notó (obligatorio), la <b>causa</b> si se encontró, y la <b>acción</b>: qué se hizo para arreglarlo.' },
-      { el: () => [campo('horas_parada'), campo('horas_hombre')], titulo: 'Horas', texto: '<b>Horas de parada</b>: cuánto tiempo el equipo no pudo trabajar. <b>Horas-hombre</b>: cuánto trabajo llevó el arreglo.' },
+      { el: () => [campo('horas_parada'), campo('horas_hombre')], titulo: 'Horas', texto: '<b>Horas de parada</b>: cuánto tiempo el equipo no pudo trabajar. <b>Horas-hombre</b>: cuánto trabajo llevó el arreglo. Aceptan decimales con coma.' },
       { el: () => campo('realizado_por_id'), titulo: 'Realizado por', texto: 'Quién lo arregló. Si no está en la lista, elegí "Otro" y escribí el nombre.' },
+      { el: () => [campo('repuestos'), campo('observaciones')], titulo: 'Repuestos y observaciones', texto: 'Lo que se cambió y lo que haya que tener en cuenta (por ejemplo, si quedó algo pendiente).' },
       { el: () => campo('accion_sgc'), titulo: 'Acción del SGC', texto: 'Marcalo si la falla requiere una acción del sistema de calidad (abrir un RAC).' },
+      { el: () => botonModal('Guardar'), titulo: 'Guardar', texto: 'Un correctivo guardado <b>no se edita ni se anula</b> desde la app: revisá los datos antes.' },
     ],
     'f-lectura': () => [
+      { titulo: 'Una lectura suelta', texto: 'Para cuando se mira el horómetro <b>sin hacer un servicio</b>. Si se hizo un servicio, la lectura va en su registro y no hace falta cargarla acá.' },
       { el: () => campo('equipo_id'), titulo: 'Equipo', texto: 'Solo aparecen los equipos que tienen horómetro.' },
+      { el: () => campo('fecha'), titulo: 'Fecha', texto: 'Cuándo se leyó. No puede ser una fecha futura.' },
       { el: () => campo('horas'), titulo: 'Horómetro', texto: 'Las horas que marca ahora. Con esto se recalcula cuánto falta para cada servicio por horas de ese equipo.' },
       { el: () => campo('anoto_id'), titulo: 'Anotó', texto: 'Quién leyó el horómetro (opcional).' },
+    ],
+    'f-cambio': () => [
+      { titulo: 'Cambio de horómetro', texto: 'Para cuando el horómetro se rompió o se reemplazó y el nuevo marca otro número. Desde la fecha del cambio, las lecturas son del nuevo.' },
+      { el: () => [campo('equipo_id'), campo('fecha')], titulo: 'Equipo y fecha', texto: 'Qué equipo y cuándo se puso el horómetro nuevo.' },
+      { el: () => campo('horas'), titulo: 'Marca el nuevo', texto: 'Lo que marca el horómetro nuevo al ponerlo (muchas veces, 0).' },
+      { el: () => campo('horas_anterior'), titulo: 'Marcaba el viejo', texto: 'Lo que marcaba el viejo al sacarlo, si se sabe. A cada servicio por horas le queda <b>lo mismo que le faltaba</b>: si al B le faltaban 300 h, queda a 300 h de lo que marca el nuevo. '
+        + 'Si no se sabe, se usa la última lectura del viejo: las horas trabajadas desde entonces no se cuentan, y conviene revisar el próximo de cada servicio en el Plan.' },
+      { el: () => botonModal('Guardar'), titulo: 'Al guardar', texto: 'Si algún servicio queda sin próximo, el aviso dice cuál: se completa en el Plan, editando la tarea.' },
+    ],
+    'f-persona': () => [
+      { el: () => campo('nombre'), titulo: 'Nombre', texto: 'El nombre y apellido del operario, o la empresa o persona del proveedor. Si es un usuario de la app, el nombre se cambia en Usuarios.' },
+      { el: () => campo('contacto'), titulo: 'Contacto', texto: 'Teléfono, mail y, para un proveedor, su rubro (qué hace). Es opcional.' },
+    ],
+    'f-programar': () => [
+      { titulo: 'Programar todos', texto: 'Cada fila es una <b>sección de instructivo</b> que su equipo todavía no tiene en el Plan. Lo marcado se programa todo junto al tocar <b>Programar</b>.' },
+      { el: () => campo('responsable_id'), titulo: 'Responsable', texto: 'Se pone en todas las tareas que se programen ahora. Después se cambia una por una en el Plan.' },
+      { el: () => uno('#f-programar thead th:nth-child(4)'), titulo: 'Según la ficha', texto: 'La frecuencia que dice la tabla «Frecuencias» del instructivo. De ahí sale la sugerida; las que no tienen sugerencia quedan sin marcar.' },
+      { el: () => uno('#f-programar tbody tr'), titulo: 'Revisar cada fila', texto: 'La casilla de la izquierda dice si se programa. Se elige la <b>frecuencia</b> y el <b>mes de inicio</b> (o, por horas, cada cuántas horas). '
+        + 'El primer servicio por horas se completa después, editando la tarea en el Plan.' },
+      { el: () => uno('#f-programar .repartir'), titulo: 'Repartir meses', texto: 'Elige el mes de inicio de cada fila marcada para que los trabajos no se junten en los mismos meses, contando también lo que ya está en el Plan. '
+        + 'Al lado se ve cuántos trabajos caen en cada mes. Después se puede retocar a mano.' },
+    ],
+    'f-nuevo-plano': () => [
+      { titulo: 'Nuevo plano', texto: 'Uno por nave o sector. Las medidas son del área a dibujar, en metros, y se pueden cambiar después. Al crearlo se abre el editor para dibujar y ubicar las máquinas.' },
     ],
     'f-tarea': () => [
       { el: () => campo('equipo_id'), titulo: 'Primero, el equipo', texto: 'Al elegirlo, la lista de abajo muestra solo las secciones de sus instructivos que todavía no están en el Plan.' },
@@ -240,9 +289,13 @@
     'f-equipo': () => [
       { el: () => campo('nombre'), titulo: 'Nombre', texto: 'Cómo se lo conoce en planta. El código (EQ-…) se asigna solo.' },
       { el: () => campo('area_id'), titulo: 'Área', texto: 'Dónde está. Si el área no existe, elegí <b>"+ Nueva área…"</b> y se crea ahí mismo.' },
+      { el: () => campo('marca_modelo'), titulo: 'Marca / modelo', texto: 'Opcional. Va a la ficha del instructivo nuevo y ayuda a encontrarlo desde la barra de preguntas.' },
       { el: () => campo('usa_horometro'), titulo: 'Horómetro', texto: 'Marcalo si el equipo tiene horómetro: así se puede programar por horas de uso y se pide la lectura en cada servicio.' },
       { el: () => campo('igual_a'), titulo: 'Equipo parecido: copiar su instructivo', texto: 'Si ya hay uno parecido, escribí su código o nombre y elegilo de la lista: el equipo arranca con una <b>copia</b> de su instructivo (con imágenes y archivos), '
         + 'con la ficha y el título ya cambiados al equipo nuevo. Cada uno queda independiente: cambiar uno no toca al otro. Si lo dejás vacío, se carga uno nuevo.' },
+      { el: () => uno('#f-equipo input[name^="it_"]')?.closest('label'), titulo: 'Su instructivo', texto: 'Desmarcarlo es dejar de usarlo en este equipo: queda como instructivo sin equipo, para asignarlo a otro. '
+        + 'No se puede mientras tenga tareas activas en el Plan.' },
+      { el: () => campo('suelto'), titulo: 'Asignar un instructivo sin equipo', texto: 'Los instructivos que quedaron sin equipo se pueden asignar acá.' },
     ],
   });
 
@@ -272,6 +325,8 @@
       + 'el nuevo arranca con una <b>copia</b> de su instructivo, para no cargar todo de nuevo. Desde ahí cada uno cambia por su lado.' },
     { ir: 'equipos', el: () => enVista('.ver-ocultos'), titulo: 'Dar de baja no es eliminar', texto: 'Es una regla de toda la app: un equipo que ya no está se marca <b>obsoleto</b> y queda oculto, <b>con todo su historial</b>. '
       + '<b>Eliminar</b> es solo para lo cargado por error y aparece únicamente si no tiene nada vinculado. Lo oculto se ve con <b>Ver ocultos</b>.' },
+    { ir: 'equipos', el: () => boton('Especificaciones'), titulo: 'Especificaciones', texto: 'Los <b>datos técnicos</b> de cada equipo (aceite, correas, presiones…) con <b>de dónde salen</b>. '
+      + 'Cualquiera los carga, y la barra de preguntas contesta con ellos en vez de suponer.' },
 
     // 2. instructivo
     { ir: algunInstructivo, el: () => enVista('.doc-cabecera'), titulo: '2 · El instructivo', texto: 'El documento que dice <b>cómo</b> se hace el mantenimiento. Arriba siempre van la descripción y la <b>seguridad</b>; lo demás va en el orden que se elija al editarlo.' },
@@ -285,6 +340,8 @@
     { ir: 'plan', el: () => enVista('table'), titulo: 'Reglas del Plan', texto: 'Solo se pueden programar secciones de los instructivos <b>de ese equipo</b>, y cada sección <b>una sola vez</b> por equipo (no hay dos tareas haciendo lo mismo). '
       + 'Las frecuencias por mes (mensual, trimestral…) van al <b>Cronograma</b>; las <b>por horas</b> van a <b>Horómetros</b>; las "según condición" no se programan.' },
     { ir: 'plan', el: () => boton('Dar de baja'), titulo: 'Tareas que se dejan de hacer', texto: 'Se dan de baja: dejan de aparecer en el Cronograma y en Inicio, pero lo ya registrado se conserva.' },
+    { ir: 'opciones', si: () => !!(typeof S !== 'undefined' && S.usuario?.es_admin), el: () => document.getElementById('op-plan'), titulo: 'Programar todo de una vez',
+      texto: 'Con muchos equipos nuevos, <b>Programar todos</b> arma las tareas que faltan con la frecuencia que sugiere cada instructivo, y <b>Repartir meses</b> evita que los trabajos se junten.' },
 
     // 4. cronograma
     { ir: 'cronograma', el: () => menu('cronograma'), titulo: '4 · Cronograma', texto: 'Sale <b>solo</b> del Plan: una fila por tarea, una columna por mes. Nadie lo completa a mano: cada casillero cambia cuando se registra el trabajo.' },
@@ -307,15 +364,20 @@
     { ir: 'correctivos', el: () => menu('correctivos'), titulo: '7 · Correctivos', texto: 'Las <b>fallas y arreglos no programados</b>: qué falló, la causa, qué se hizo y cuántas horas estuvo parado el equipo. '
       + 'No entran en el cumplimiento, pero muestran qué equipos fallan más. Si la falla necesita una acción de calidad, se marca <b>SGC</b>.' },
 
-    // 8. personal, áreas, usuarios
-    { ir: 'personal', el: () => menu('personal'), titulo: '8 · Personal', texto: 'Quién hace los trabajos: <b>Mantenimiento interno</b> (los usuarios aparecen solos) y <b>Proveedores externos</b>. '
+    // 8. mapa
+    { ir: 'mapa', el: () => menu('mapa'), titulo: '8 · Mapa de planta', texto: 'Los planos de la planta con cada máquina en su lugar y de un color: <b>rojo</b> algo vencido, <b>ámbar</b> le toca este mes, '
+      + '<b>azul</b> falta un dato, <b>verde</b> al día. Tocando una máquina se ve lo pendiente y se registra ahí mismo. Los planos los dibuja un administrador.' },
+
+    // 9. personal, áreas, usuarios
+    { ir: 'personal', el: () => menu('personal'), titulo: '9 · Personal', texto: 'Quién hace los trabajos: <b>Mantenimiento interno</b> (los usuarios aparecen solos) y <b>Proveedores externos</b>. '
       + 'Para cada uno se ve cuántos preventivos y correctivos hizo en el año, con sus horas-hombre.' },
-    { ir: 'areas', el: () => menu('areas'), titulo: '9 · Áreas', texto: 'Las áreas de la planta. Cada equipo pertenece a una, y acá se ve por área: equipos, preventivos, correctivos y horas de parada del año.' },
-    { ir: 'usuarios', si: () => !!(typeof S !== 'undefined' && S.usuario?.es_admin), el: () => menu('usuarios'), titulo: '10 · Usuarios', texto: 'Quiénes entran. Un <b>usuario</b> ve todo y registra trabajos; un <b>administrador</b> además configura equipos, instructivos, Plan y personal. '
+    { ir: 'areas', el: () => menu('areas'), titulo: '10 · Áreas', texto: 'Las áreas de la planta. Cada equipo pertenece a una, y acá se ve por área: equipos, preventivos, correctivos y horas de parada del año.' },
+    { ir: 'usuarios', si: () => !!(typeof S !== 'undefined' && S.usuario?.es_admin), el: () => menu('usuarios'), titulo: '11 · Usuarios', texto: 'Quiénes entran. Un <b>usuario</b> ve todo y registra trabajos; un <b>administrador</b> además configura equipos, instructivos, Plan y personal. '
       + 'Siempre queda al menos un administrador activo.' },
 
     // cierre: el día a día
     { ir: 'inicio', el: () => menu('inicio'), titulo: 'El día a día: Inicio', texto: 'Con todo configurado, el trabajo diario empieza acá: lo que toca <b>este mes</b>, lo <b>atrasado</b> y los servicios por horas que se acercan, cada uno con su botón para registrarlo.' },
+    { ir: 'inicio', el: () => boton('Imprimir lista del mes'), titulo: 'Para el taller', texto: '<b>Imprimir lista del mes</b> saca en papel lo pendiente, con casilleros para anotar a mano. Lo hecho se registra después en la app.' },
 
   );
 })();

@@ -80,4 +80,5 @@ Ayuda.pasos['f-especificacion'] = () => [
   { el: () => [Ayuda.h.campo('valor'), Ayuda.h.campo('unidad')], titulo: 'Valor y unidad', texto: 'El dato tal como figura en la fuente (por ejemplo «ISO VG 46» o «8» con unidad «bar»).' },
   { el: () => [Ayuda.h.campo('fuente'), Ayuda.h.campo('fuente_detalle')], titulo: 'De dónde sale', texto: 'Manual del fabricante, placa del equipo, proveedor o experiencia del técnico. '
     + 'Es lo que le da confianza al dato: la barra de preguntas lo informa junto con el valor.' },
+  { el: () => Ayuda.h.campo('notas'), titulo: 'Notas', texto: 'Lo que aclare el dato: equivalencias, cuándo se cambió, o «no estoy seguro» si la fuente es la experiencia.' },
 ];

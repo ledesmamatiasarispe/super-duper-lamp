@@ -245,6 +245,20 @@ def test_la_pagina_pide_los_archivos_con_la_version(api):
     assert "Legajo" in r.text and "Fundición Romero" in r.text
 
 
+def test_la_ayuda_solo_usa_buscadores_declarados():
+    """Los buscadores de elementos (conTexto, todos...) viven en Ayuda.h, no son globales. Un paso que usa uno sin
+    traerlo tira un error que el motor de la Ayuda se traga: el paso no se muestra nunca y nadie se entera (pasó con
+    nueve pasos, desde la 1.1.0)."""
+    import re
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[1] / "modulos/mantenimiento/frontend/ayuda_mantenimiento.js").read_text(encoding="utf-8")
+    declarados = set(re.search(r"const \{([^}]*)\} = Ayuda\.h", js).group(1).replace(" ", "").split(","))
+    declarados |= set(re.findall(r"const (\w+) = ", js))
+    for nombre in ("uno", "todos", "conTexto", "enVista", "boton", "tarjeta", "campo", "botonModal", "menu", "vista", "modal"):
+        if re.search(rf"(?<![\w.]){nombre}\(", js):
+            assert nombre in declarados, f"ayuda_mantenimiento.js usa {nombre}() sin declararlo"
+
+
 def test_lo_registrado_antes_del_alta_no_cuenta_en_el_cumplimiento(api):
     """Se cargó el historial de un año en que la tarea todavía no estaba en el Plan: se ve, pero no infla el porcentaje."""
     from modulos.mantenimiento import servicios as sv

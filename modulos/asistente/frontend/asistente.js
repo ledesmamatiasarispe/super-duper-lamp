@@ -304,7 +304,8 @@ Nucleo.tarjetasOpciones.push({
       <p>${e.disponible ? `<span class="chip verde">IA local lista</span> Modelo <b>${esc(e.modelo)}</b>.`
         : `<span class="chip ambar">Sin IA</span> ${esc(e.motivo)}`}</p>
       <p class="sutil">Lo que se puede contestar con cuentas (vencidos, pendientes, horas que faltan) lo contesta la app sola.
-        Lo demás lo redacta la IA local con los datos de la app, sin salir a internet. Sin IA, la barra muestra un resumen.</p>
+        Lo demás lo busca la IA local: elige de los datos de la app lo que contesta y se muestra tal cual, sin salir a internet.
+        Sin IA, la barra muestra un resumen.</p>
       <div class="botones"><button type="button" onclick="asisVerTextos()">Ver lo que lee la IA</button></div>
       <p class="sutil">Micrófono: ${_asisMicro ? 'disponible en este navegador (botón 🎤).'
         : 'este navegador no lo permite en esta dirección; en el celular se dicta con el micrófono del teclado.'}</p>
@@ -328,8 +329,21 @@ Nucleo.tarjetasOpciones.push({
 });
 
 Ayuda.tour.push({ ir: 'inicio', el: '#asis-form', titulo: 'Preguntale a la app',
-  texto: 'Escribí (o dictá) una pregunta sobre una máquina: qué le pasó, qué se le cambió, qué falta, cómo se hace un servicio. '
-    + 'Lo que se calcula lo contesta la app; lo demás lo redacta una IA que corre en esta PC, con los datos cargados.' });
+  texto: 'Escribí (o dictá) una pregunta: qué le pasó a una máquina, qué falta hacer, qué aceite lleva, o cómo se usa una pantalla («¿cómo cargo…?», «¿qué hago si…?»). '
+    + 'Lo que se calcula lo contesta la app; lo demás lo busca una IA que corre en esta PC y muestra lo cargado tal cual. '
+    + 'Recuerda las últimas preguntas: «¿y cuántas horas tiene?» sigue con la misma máquina; <b>Nueva</b> empieza de cero.' });
+
+// La Ayuda de Opciones suma la tarjeta del asistente (la del núcleo y la de otros módulos quedan como están).
+const _asisOpcionesAntes = Ayuda.pasos.opciones;
+Ayuda.pasos.opciones = () => [...(_asisOpcionesAntes ? _asisOpcionesAntes() : []),
+  { el: () => document.getElementById('op-asistente'), titulo: 'Asistente (barra de preguntas)', texto: 'Dice si la IA local está lista y con qué modelo. '
+    + 'Sin IA la barra funciona igual: contesta lo que se calcula y, para lo demás, muestra un resumen de lo encontrado.' },
+  { el: () => Ayuda.h.boton('Ver lo que lee la IA'), titulo: 'Ver lo que lee la IA', texto: 'La guía de uso, los sinónimos y las <b>fichas</b> que se arman solas con lo cargado. '
+    + 'La IA no lee toda la base: recibe solo lo que viene al caso de estos textos. Sirve para ver por qué contestó lo que contestó.' },
+  { el: () => document.getElementById('f-asistente'), titulo: 'Dirección y modelo (solo administradores)', texto: 'Dónde corre la IA (Ollama, en esta PC o en otra de la red) y qué modelo usa.' },
+  { el: () => document.getElementById('asis-reiniciar'), titulo: 'Reiniciar la IA', texto: 'Si la IA no contesta o tarda demasiado: cierra Ollama y lo vuelve a abrir (hasta un minuto). No toca ningún otro programa. '
+    + 'Si tarda siempre, suele ser poca memoria libre en la PC: cerrar programas ayuda.' },
+];
 
 Nucleo.alEntrar.push(async () => { _asisArmar(); });
 _asisArmar();

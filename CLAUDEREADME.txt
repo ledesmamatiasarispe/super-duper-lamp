@@ -180,7 +180,10 @@ La idea en una línea:
   v1.5.0 (la barra conversa: se vacía al preguntar, recuerda las últimas preguntas, sigue con la misma máquina y la IA
   recibe la conversación con tope de tokens),
   v1.6.0 (la IA lee una guía de uso, un diccionario de sinónimos y fichas automáticas de todo lo cargado, y ELIGE los
-  fragmentos que contestan en vez de redactar: más rápido y copia fiel; Opciones -> Ver lo que lee la IA).
+  fragmentos que contestan en vez de redactar: más rápido y copia fiel; Opciones -> Ver lo que lee la IA),
+  v1.7.0 (Ayuda y Tour revisados contra todas las pantallas: 9 pasos que nunca se mostraban por usar buscadores sin
+  declarar -test_la_ayuda_solo_usa_buscadores_declarados-, formularios sin Ayuda, el Mapa en el Tour; la guía de la IA
+  con permisos, códigos, frecuencias y secciones "Qué hago si…"; el título de una sección de la guía pesa más).
 
 
 7. DATOS REALES Y MIGRACIONES YA HECHAS

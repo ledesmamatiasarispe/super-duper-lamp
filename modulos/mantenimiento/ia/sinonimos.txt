@@ -23,3 +23,9 @@ cumplimiento, porcentaje cumplido, indicador
 horas hombre, mano de obra
 sgc, sistema de calidad, rac, acción correctiva
 obsoleto, fuera de uso, desafectado
+anular, me equivoqué, cargué mal, carga equivocada
+cronograma, calendario, planilla anual
+plan, programación, programar
+mecánico, técnico, operario, electricista
+revisión del instructivo, versión del instructivo, historial de revisiones
+lectura, medición, cuánto marca
